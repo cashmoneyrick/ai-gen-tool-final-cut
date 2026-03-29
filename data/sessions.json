@@ -177,5 +177,32 @@
     "assembledPromptDirty": false,
     "batchSize": 1,
     "refIds": []
+  },
+  {
+    "id": "session-nail-spring",
+    "projectId": "project-nail-spring",
+    "createdAt": 1774815885179,
+    "updatedAt": 1774815885179,
+    "title": "",
+    "goal": "Spring floral nail designs on square/squoval nails, flatlay on white background",
+    "goalDirtyAfterApproval": false,
+    "planStatus": "idle",
+    "approvedPlan": null,
+    "buckets": {
+      "subject": "spring floral square nails with pastel flowers and cherry blossoms",
+      "style": "flatlay nail photography on clean white background",
+      "lighting": "",
+      "composition": "",
+      "technical": ""
+    },
+    "assembledPrompt": "spring floral square nails with pastel flowers and cherry blossoms. flatlay nail photography on clean white background",
+    "assembledPromptDirty": false,
+    "roughNotes": "",
+    "lockedElementIds": [],
+    "refIds": [],
+    "outputIds": [],
+    "winnerIds": [],
+    "model": "gemini-3.1-flash-image-preview",
+    "batchSize": 1
   }
 ]
