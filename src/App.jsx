@@ -9,6 +9,7 @@ import PlanHistory from './components/PlanHistory'
 import SystemMemoryStatus from './components/SystemMemoryStatus'
 import SystemInspector from './components/SystemInspector'
 import CarryForwardIndicator from './components/CarryForwardIndicator'
+import OperatorConsole from './console/OperatorConsole'
 import useSystemMemory from './hooks/useSystemMemory'
 import { buildIterationContext, formatIterationContextForPlan, formatIterationContextForGeneration } from './planning/iterationContext'
 import { analyzePatterns } from './analysis/patternEngine'
@@ -134,6 +135,9 @@ export default function App() {
 
   // System inspector drawer state
   const [inspectorOpen, setInspectorOpen] = useState(false)
+
+  // Operator console toggle state
+  const [consoleOpen, setConsoleOpen] = useState(false)
 
   // Model selection state
   const [model, setModel] = useState('gemini-3.1-flash-image-preview')
@@ -1142,8 +1146,19 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        Studio <span>v1</span>
+        <div>Studio <span>v1</span></div>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => setConsoleOpen(!consoleOpen)}
+          style={{ marginLeft: 'auto' }}
+        >
+          {consoleOpen ? '← Studio' : 'Console'}
+        </button>
       </header>
+      {consoleOpen ? (
+        <OperatorConsole onClose={() => setConsoleOpen(false)} />
+      ) : (
+        <>
       <ProjectBar
         projects={projects}
         activeProjectId={activeProjectId}
@@ -1245,6 +1260,8 @@ export default function App() {
         onAcceptSuggestion={handleAcceptSuggestion}
         onDismissSuggestion={handleDismissSuggestion}
       />
+      </>
+      )}
     </div>
   )
 }
