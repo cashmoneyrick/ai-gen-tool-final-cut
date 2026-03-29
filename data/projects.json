@@ -1,0 +1,38 @@
+[
+  {
+    "id": "project-default",
+    "name": "Default Project",
+    "createdAt": 1774765173949,
+    "updatedAt": 1774771349064,
+    "archived": false,
+    "notes": "",
+    "defaultModel": null
+  },
+  {
+    "id": "c2becc24-37c2-4e5b-abb5-71de57b9b37b",
+    "name": "New Project",
+    "createdAt": 1774765257283,
+    "updatedAt": 1774772062638,
+    "archived": false,
+    "notes": "",
+    "defaultModel": null
+  },
+  {
+    "id": "project-nail-cateye",
+    "name": "French Tip Cat-Eye Nails Collection",
+    "createdAt": 1774772204626,
+    "updatedAt": 1774774000025
+  },
+  {
+    "id": "project-nail-october",
+    "name": "October Birthstone Stiletto Nails",
+    "createdAt": 1774773306407,
+    "updatedAt": 1774773967101
+  },
+  {
+    "id": "project-flower-nails",
+    "name": "Hand-Painted Flower Nails Collection",
+    "createdAt": 1774774163000,
+    "updatedAt": 1774775385638
+  }
+]

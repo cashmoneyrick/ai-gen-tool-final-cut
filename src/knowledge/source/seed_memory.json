@@ -1,0 +1,648 @@
+{
+"project": "YPS image workflow knowledge pack for embroidered pouch packaging, reference-driven nail conversions, flatlays, and cateye nail collection continuity",
+"systems": [
+"embroidered_pouch_packaging",
+"reference_driven_nail_generation",
+"hand_shot_to_flatlay_conversion",
+"cateye_single_nail_collection"
+],
+"hard_rules": [
+{
+"id": "approved_output_becomes_source_of_truth",
+"rule": "Treat the best approved output as the new source of truth for future edits or consistency passes.",
+"applies_to": [
+"flatlays",
+"iterative nail edits",
+"consistency locking"
+],
+"priority": "high",
+"notes": "Once composition is mostly right, editing the approved image is safer than regenerating from the older source."
+},
+{
+"id": "separate_reference_roles_explicitly",
+"rule": "When using multiple references, explicitly separate what each reference controls.",
+"applies_to": [
+"reference-driven nail generation",
+"reverse engineering",
+"lifestyle hand shots"
+],
+"priority": "high",
+"notes": "Design reference should control design details; pose reference should control scene variables only."
+},
+{
+"id": "preserve_exact_visible_nail_designs",
+"rule": "For hand-shot to flatlay conversions, preserve the exact visible nail design, order, placement, and proportions from the source image.",
+"applies_to": [
+"flatlay generation"
+],
+"priority": "high",
+"notes": "The task is faithful conversion, not reinterpretation."
+},
+{
+"id": "do_not_guess_unseen_nails",
+"rule": "Do not guess unseen nails. Reduce scope to only clearly visible nails or build a simple blueprint first.",
+"applies_to": [
+"reverse engineering incomplete sources"
+],
+"priority": "high",
+"notes": "Guessing missing nails is a major drift source."
+},
+{
+"id": "flatlay_default_layout",
+"rule": "Flatlay product shots should default to a perfectly straight horizontal row on pure white with the camera perfectly perpendicular to the nail faces.",
+"applies_to": [
+"nail flatlays",
+"catalog shots"
+],
+"priority": "high",
+"notes": "Use even spacing, minimal shadow, no props, and strong anti-glare control."
+},
+{
+"id": "lock_packaging_base_setup",
+"rule": "Packaging mockups must keep the locked base setup unless intentionally changed.",
+"applies_to": [
+"embroidered pouch packaging"
+],
+"priority": "high",
+"notes": "Default setup is premium suede or microsuede drawstring pouch, white background, slight angle."
+},
+{
+"id": "packaging_world_fragment_not_badge",
+"rule": "Packaging art should read like a cropped fragment from a larger world, not a centered badge, patch, or self-contained emblem.",
+"applies_to": [
+"embroidered pouch scenes"
+],
+"priority": "high",
+"notes": "Use edge bleed and partial cutoff to prevent generic emblem drift."
+},
+{
+"id": "hidden_yps_must_be_native",
+"rule": "Hidden YPS branding must be born from the scene logic, not placed on top as obvious text.",
+"applies_to": [
+"scene easter eggs",
+"packaging branding"
+],
+"priority": "high",
+"notes": "Works best when built from ripples, vines, reeds, stars, ironwork, or similar native geometry."
+},
+{
+"id": "embroidery_feasible_and_texture_dominant",
+"rule": "Packaging artwork must remain realistic for tiny-scale embroidery production, and embroidery texture must dominate over smooth illustration.",
+"applies_to": [
+"embroidered pouch scenes"
+],
+"priority": "high",
+"notes": "Use readable motifs, visible stitch direction, raised thread relief, and simplified forms."
+},
+{
+"id": "cateye_house_style_default",
+"rule": "The cateye collection should default to Wide Cat Eye plus black base, silver magnetic layer, and translucent color cover unless a month clearly requires deviation.",
+"applies_to": [
+"cateye collection"
+],
+"priority": "high",
+"notes": "This is the preferred house system for continuity and magnetic life."
+},
+{
+"id": "filled_cateye_field_not_donut",
+"rule": "The cateye magnetic effect must read as a filled broad internal field, not a donut, halo, ring, crescent, or hotspot.",
+"applies_to": [
+"cateye single-nail product shots"
+],
+"priority": "high",
+"notes": "Describe it as a continuous filled central field with feathered darker edges."
+},
+{
+"id": "cateye_straight_on_antiglare",
+"rule": "Cateye product shots must stay straight-on and anti-glare.",
+"applies_to": [
+"cateye single-nail product shots"
+],
+"priority": "high",
+"notes": "Single nail, centered, square frame, near-white background, camera perfectly perpendicular, one tiny soft highlight only."
+},
+{
+"id": "local_fix_for_local_problem",
+"rule": "When a fix is local, make the fix local.",
+"applies_to": [
+"approved flatlays",
+"approved product shots",
+"composition-locked generations"
+],
+"priority": "high",
+"notes": "Full rerolls often break what was already correct. Edit only the defective region."
+}
+],
+"preferences": [
+{
+"id": "packaging_depth_over_object_count",
+"preference": "Use depth, layering, overlap, and tonal separation instead of just adding more objects.",
+"applies_to": [
+"embroidered pouch packaging"
+],
+"strength": "strong",
+"notes": "More detail should mean more world depth, not clutter."
+},
+{
+"id": "packaging_harder_crop_when_drifting",
+"preference": "Use harder crops and partial cutoffs when scenes start feeling too complete or emblem-like.",
+"applies_to": [
+"embroidered pouch packaging"
+],
+"strength": "strong",
+"notes": "Subjects can be cropped by edges or seams."
+},
+{
+"id": "packaging_alive_edge_bleed",
+"preference": "Let artwork bleed organically around the pouch rather than sitting inside a strict square or patch.",
+"applies_to": [
+"embroidered pouch packaging"
+],
+"strength": "strong",
+"notes": "This supports the fragment-from-a-larger-world feel."
+},
+{
+"id": "packaging_premium_feminine_tactile",
+"preference": "Keep the pouch premium, feminine, intentional, and tactile rather than generic or decorative.",
+"applies_to": [
+"embroidered pouch packaging"
+],
+"strength": "strong",
+"notes": "Small luxury feel is part of the target."
+},
+{
+"id": "flatlay_head_on_white_row",
+"preference": "Default flatlays to five loose nails in a straight horizontal row on pure white, head-on and evenly spaced.",
+"applies_to": [
+"nail flatlays"
+],
+"strength": "strong",
+"notes": "Minimal shadow, anti-glare, no props."
+},
+{
+"id": "handmade_realism_over_perfection",
+"preference": "Keep nails handmade and believable rather than machine-perfect.",
+"applies_to": [
+"flatlays",
+"product shots",
+"reverse-engineered nails"
+],
+"strength": "strong",
+"notes": "Slight asymmetry and realistic gel thickness help."
+},
+{
+"id": "always_check_for_references",
+"preference": "Proactively check whether usable reference images are available.",
+"applies_to": [
+"all image workflows"
+],
+"strength": "strong",
+"notes": "References materially improve fidelity."
+},
+{
+"id": "two_reference_setup_default",
+"preference": "Use one design reference plus one pose or scene reference when translating a set into a new format.",
+"applies_to": [
+"reverse engineering",
+"on-hand lifestyle shots",
+"format conversion"
+],
+"strength": "strong",
+"notes": "The design reference should stay dominant."
+},
+{
+"id": "wide_cat_eye_house_pattern",
+"preference": "Use Wide Cat Eye as the default house pattern.",
+"applies_to": [
+"cateye collection"
+],
+"strength": "strong",
+"notes": "Only break from it if a month clearly performs poorly."
+},
+{
+"id": "tiny_restrained_highlight",
+"preference": "Keep the surface reflection tiny, soft, and subordinate to the magnetic effect.",
+"applies_to": [
+"cateye collection"
+],
+"strength": "strong",
+"notes": "One short soft dash highlight near the upper center is preferred."
+},
+{
+"id": "json_bucket_method_default",
+"preference": "Use structured JSON Bucket Method for image prompts.",
+"applies_to": [
+"current image prompt writing"
+],
+"strength": "strong",
+"notes": "Buckets are Subject, Style, Lighting, Composition, and Technical Refinements."
+},
+{
+"id": "packaging_format_conflict_plaintext_vs_json",
+"preference": "There is a packaging prompt format conflict: older packaging threads preferred one plain-text finished prompt with no markdown, while later system preference shifted toward JSON Bucket Method.",
+"applies_to": [
+"packaging prompts"
+],
+"strength": "medium",
+"notes": "Current best interpretation: use JSON Bucket Method by default unless continuity with older packaging threads specifically calls for the plain-text packaging style."
+}
+],
+"workflows": [
+{
+"id": "two_reference_generation",
+"name": "Two-reference generation",
+"use_when": "You need to translate a nail set into a new pose, scene, or format without redesigning it.",
+"inputs_needed": [
+"design reference image",
+"pose or scene reference image",
+"target output type"
+],
+"steps": [
+"State that the design reference is the hard source of truth.",
+"State that the pose reference controls only pose, framing, lighting, crop, and background.",
+"Lock the output type clearly.",
+"Add explicit keep and avoid constraints.",
+"Generate once.",
+"If fidelity is close but not perfect, reuse the best output as the next reference instead of starting over."
+],
+"failure_modes": [
+"model blends both references",
+"art gets simplified or redesigned",
+"pose reference contaminates nail design"
+],
+"fixes": [
+"restate reference roles more aggressively",
+"add 'do not copy nail design from pose reference'",
+"use the best approved output as the new design anchor"
+]
+},
+{
+"id": "hand_shot_to_white_row_flatlay",
+"name": "Hand-shot to white row flatlay",
+"use_when": "A real worn-hand photo needs to become a clean product flatlay.",
+"inputs_needed": [
+"source hand photo showing the real nails"
+],
+"steps": [
+"Treat the source hand photo as the only source of truth unless a second reference is truly needed.",
+"Preserve the exact visible nail designs, order, placement, and proportions.",
+"Convert to five loose nails in one straight horizontal row.",
+"Use a pure white background and camera perfectly perpendicular to the nail faces.",
+"Keep spacing even, shadows minimal, and glare controlled.",
+"If a first output gets most nails right, use that approved flatlay as the new source for small corrections."
+],
+"failure_modes": [
+"design drift",
+"charm placement moves",
+"one nail changes shape or art",
+"glare becomes distracting"
+],
+"fixes": [
+"restate exact-design fidelity",
+"target only the wrong nail in a follow-up edit",
+"use stronger anti-glare constraints",
+"promote the approved flatlay to source-of-truth status"
+]
+},
+{
+"id": "approved_image_edit_pass",
+"name": "Approved-image edit pass",
+"use_when": "A generated image is mostly right and needs a local fix.",
+"inputs_needed": [
+"approved output image",
+"one clear correction target"
+],
+"steps": [
+"Declare the approved image the current source of truth.",
+"Ask for only the local change.",
+"Lock composition, spacing, lighting, and all other elements.",
+"Edit only the defective region or nail."
+],
+"failure_modes": [
+"model reinterprets the whole image",
+"fixed element moves but good elements also change"
+],
+"fixes": [
+"specify 'change only X'",
+"repeat what must stay locked",
+"avoid rerolling from the older original"
+]
+},
+{
+"id": "visible_only_blueprint_workflow",
+"name": "Visible-only blueprint workflow",
+"use_when": "The source photo does not clearly show every nail.",
+"inputs_needed": [
+"incomplete source photo",
+"optional blueprint sheet of only visible nails"
+],
+"steps": [
+"Identify which nails are clearly visible.",
+"Build a reduced-scope blueprint if needed.",
+"Generate only the visible nails first.",
+"Add missing nails later only when better source information exists."
+],
+"failure_modes": [
+"model invents unseen nails",
+"continuity breaks across the set"
+],
+"fixes": [
+"explicitly forbid guessing",
+"narrow the task to visible nails only"
+]
+},
+{
+"id": "packaging_scene_construction",
+"name": "Packaging scene construction",
+"use_when": "Building or expanding an embroidered pouch scene.",
+"inputs_needed": [
+"pouch continuity settings",
+"concept name",
+"chosen scene elements",
+"mood",
+"crop",
+"density",
+"hidden YPS placement choice"
+],
+"steps": [
+"Lock pouch continuity first.",
+"Define the world as a cropped fragment, not a badge.",
+"Pick one main focal idea and supporting elements.",
+"Build foreground, midground, and background separation.",
+"Add overlap, tonal separation, and scene bleed around the edges.",
+"Simplify forms for embroidery feasibility.",
+"Make YPS subtle and born from scene logic if used."
+],
+"failure_modes": [
+"scene feels boxed in",
+"subject feels like a mascot or emblem",
+"too much detail for embroidery",
+"hidden YPS looks like text added on top"
+],
+"fixes": [
+"crop harder",
+"partially cut off the subject",
+"reduce micro-detail",
+"integrate YPS into ripples, vines, reeds, stars, or ironwork instead of writing it out"
+]
+},
+{
+"id": "embroidery_texture_correction",
+"name": "Embroidery texture correction",
+"use_when": "A packaging scene looks printed, painted, or too smooth.",
+"inputs_needed": [
+"current prompt or generated image"
+],
+"steps": [
+"Increase stitch direction visibility.",
+"Ask for chunkier satin fills and raised thread relief.",
+"Replace smooth shading with stitched masses and simplified forms.",
+"Keep scene readability while letting thread texture dominate."
+],
+"failure_modes": [
+"art looks like illustration on fabric",
+"water or sky looks smoothly blended",
+"feather or flower detail looks painted"
+],
+"fixes": [
+"call for stitched ripple bands, stitched feather groupings, and thread-built foliage",
+"reduce soft gradient language",
+"simplify shapes so the texture reads first"
+]
+},
+{
+"id": "cateye_master_style_generation",
+"name": "Cateye master-style generation",
+"use_when": "Creating a month in the cateye collection or restoring house-style continuity.",
+"inputs_needed": [
+"approved house-style reference if available",
+"birthstone color target"
+],
+"steps": [
+"Lock the house style: Wide Cat Eye, black base, silver magnetic layer, translucent color cover.",
+"Keep a single straight-on nail on a near-white background.",
+"Lock composition, angle, and reflection behavior.",
+"Describe the magnetic field as a broad filled vertical sheen, not an outlined shape.",
+"Swap only the birthstone color behavior while keeping geometry and lighting stable."
+],
+"failure_modes": [
+"donut or halo effect",
+"angle drift",
+"too much glare",
+"color becomes too bright, minty, chrome, or metallic"
+],
+"fixes": [
+"say 'continuous filled central field'",
+"restate exact straight-on view",
+"cap reflection to one tiny soft dash",
+"deepen outer thirds and darken the base tone"
+]
+},
+{
+"id": "month_to_month_cateye_continuity",
+"name": "Month-to-month cateye continuity",
+"use_when": "Extending the cateye collection after one month is approved.",
+"inputs_needed": [
+"approved previous month output",
+"next month color target"
+],
+"steps": [
+"Use the approved month as the exact reflection and camera reference.",
+"Keep the same angle, highlight behavior, framing, and magnetic geometry.",
+"Change only the colorway and supporting color language.",
+"Verify that the new month still reads as the same collection."
+],
+"failure_modes": [
+"lighting changes",
+"highlight size changes",
+"magnetic field shifts shape"
+],
+"fixes": [
+"explicitly say 'change only the colorway'",
+"reference the approved output as the strict house-style anchor"
+]
+}
+],
+"lessons": [
+{
+"id": "refs_massively_improve_fidelity",
+"lesson": "Reference images dramatically improve fidelity.",
+"context": "Reverse-engineering existing handmade sets into on-hand images or other formats.",
+"failed_pattern": "No-reference generations guessed motifs or simplified the set into a generic version.",
+"better_pattern": "Use at least one strong design reference, and preferably pair it with a separate pose reference.",
+"confidence": "high",
+"reuse_value": "High-value default rule for nearly every serious generation workflow."
+},
+{
+"id": "reference_role_separation_prevents_blending",
+"lesson": "Reference-role separation matters almost as much as having references.",
+"context": "Two-reference nail generations.",
+"failed_pattern": "The model blended the references and redesigned the set when roles were not explicit.",
+"better_pattern": "State that image 1 controls design and image 2 controls pose, crop, lighting, and scene only.",
+"confidence": "high",
+"reuse_value": "Prevents one of the most common multi-reference drift patterns."
+},
+{
+"id": "packaging_scene_too_complete_causes_emblem_drift",
+"lesson": "Packaging scenes drift when they become too complete and self-contained.",
+"context": "Embroidered pouch concepts with richer scenes.",
+"failed_pattern": "Centered, fully visible scenes started reading like badges or storybook emblems.",
+"better_pattern": "Use harder crop, partial subject cutoff, more edge bleed, and a fragment-from-a-larger-world feel.",
+"confidence": "high",
+"reuse_value": "Core anti-generic tactic for packaging prompts."
+},
+{
+"id": "more_detail_should_mean_more_depth",
+"lesson": "More detail should not mean more objects.",
+"context": "Packaging prompt refinement.",
+"failed_pattern": "Adding objects made scenes busier but flatter.",
+"better_pattern": "Increase foreground, midground, background separation, overlap, and tonal contrast.",
+"confidence": "high",
+"reuse_value": "Important translation rule for future prompt expansion."
+},
+{
+"id": "smooth_surface_breaks_embroidery_realism",
+"lesson": "Embroidery prompts fail when the surface is too smooth.",
+"context": "Packaging outputs that looked illustrated rather than embroidered.",
+"failed_pattern": "Smooth gradients, soft blending, and polished surfaces made the art feel printed.",
+"better_pattern": "Use visible stitch direction, chunkier satin fills, raised thread relief, thread-built elements, and slightly simplified forms.",
+"confidence": "high",
+"reuse_value": "Core realism fix for all embroidery scenes."
+},
+{
+"id": "hidden_branding_must_follow_scene_logic",
+"lesson": "Hidden branding works only when it behaves like the surrounding scene logic.",
+"context": "YPS easter eggs in ripples, stars, vines, reeds, and ironwork.",
+"failed_pattern": "YPS looked like faint text placed on top of the scene or carved into it.",
+"better_pattern": "Build YPS from the same geometry, stitch behavior, and movement as the surrounding structure.",
+"confidence": "high",
+"reuse_value": "Critical for subtle branding without breaking immersion."
+},
+{
+"id": "wide_cat_eye_can_turn_into_donut",
+"lesson": "The phrase 'wide cat eye' can accidentally create a donut.",
+"context": "Cateye nail collection refinement.",
+"failed_pattern": "The model interpreted wide as a bordered oval or halo with a hollow center.",
+"better_pattern": "Describe the effect as a continuous filled central magnetic field with no outline or hollow center.",
+"confidence": "high",
+"reuse_value": "Key wording fix for future cateye prompts."
+},
+{
+"id": "use_approved_month_as_collection_anchor",
+"lesson": "Locking one approved cateye month as the reference stabilizes the whole collection.",
+"context": "Monthly birthstone cateye development.",
+"failed_pattern": "Rewriting each month from scratch caused angle, glare, and geometry drift.",
+"better_pattern": "Use the approved month as the exact camera and reflection reference and change only the colorway.",
+"confidence": "high",
+"reuse_value": "Strong collection-consistency tactic."
+},
+{
+"id": "local_problem_local_fix",
+"lesson": "Local problems should get local fixes.",
+"context": "Flatlays and iterative nail corrections.",
+"failed_pattern": "Full reruns broke composition or nails that were already correct.",
+"better_pattern": "Edit only the wrong nail or local issue while freezing the rest.",
+"confidence": "high",
+"reuse_value": "Saves time and reduces regression."
+},
+{
+"id": "do_not_force_hidden_nail_reconstruction",
+"lesson": "Do not force the model to reconstruct hidden nails from unclear source photos.",
+"context": "Hand-shot to flatlay conversion when not all nails were visible.",
+"failed_pattern": "The model guessed missing nails and broke continuity.",
+"better_pattern": "Restrict the task to clearly visible nails first or use a blueprint of isolated visible nails.",
+"confidence": "high",
+"reuse_value": "Good guardrail for incomplete-source workflows."
+},
+{
+"id": "one_source_photo_can_be_enough_for_flatlay",
+"lesson": "A source hand photo is often enough for flatlay conversion.",
+"context": "Converting worn-hand nail images into product flatlays.",
+"failed_pattern": "Adding unnecessary extra references increased drift instead of helping.",
+"better_pattern": "Use the original hand photo as the sole design source when the target layout is very controlled.",
+"confidence": "medium",
+"reuse_value": "Useful simplification rule for straight-row flatlay tasks."
+},
+{
+"id": "slight_imperfection_improves_handmade_realism",
+"lesson": "Slight imperfection helps realism in handmade nails.",
+"context": "Photoreal nail imagery and product shots.",
+"failed_pattern": "Overly perfect results looked AI-made, factory-made, or over-retouched.",
+"better_pattern": "Keep believable gel thickness, slight asymmetry, human-painted variation, and controlled but not sterile finish.",
+"confidence": "medium",
+"reuse_value": "Important realism cue across multiple nail workflows."
+}
+],
+"patterns": [
+{
+"id": "hard_source_plus_secondary_reference",
+"pattern": "Use a hard-source design reference plus a secondary pose or scene reference with explicit role separation.",
+"best_use_case": "Translating an existing nail set into a new lifestyle shot or controlled scene.",
+"example_structure": "Reference 1 controls nail design, shape, color, art placement, and finish. Reference 2 controls pose, framing, lighting, crop, and background only.",
+"notes": "This is the default multi-reference handling pattern."
+},
+{
+"id": "lock_all_but_one_variable",
+"pattern": "Lock all unchanged variables and change only one variable at a time.",
+"best_use_case": "Collection work, especially cateye monthly color swaps.",
+"example_structure": "Use the approved previous output as the exact camera angle, reflection behavior, and magnetic geometry reference. Change only the colorway.",
+"notes": "Excellent for continuity and drift reduction."
+},
+{
+"id": "world_fragment_packaging_pattern",
+"pattern": "Build packaging scenes as cropped fragments from a larger world instead of centered badges.",
+"best_use_case": "Premium embroidered pouch scenes.",
+"example_structure": "Show a medium or hard-cropped fragment from a larger world, with elements continuing off the edges and no strict badge or framed panel.",
+"notes": "This prevents emblem drift."
+},
+{
+"id": "embroidery_first_texture_pattern",
+"pattern": "Make embroidery texture dominate over smooth illustration.",
+"best_use_case": "Any pouch scene that risks looking printed or painted.",
+"example_structure": "Visible stitch direction, chunkier satin-stitch fills, raised thread relief, thread-built foliage, stitched ripple bands, slightly simplified forms so the embroidery texture dominates.",
+"notes": "Use when the surface looks too smooth."
+},
+{
+"id": "native_geometry_hidden_branding",
+"pattern": "Hide YPS by building it from the native geometry of the scene.",
+"best_use_case": "Subtle branding in water, vines, stars, reeds, or ironwork.",
+"example_structure": "Build YPS from the same ripple, vine, reed, ironwork, or star logic as the surrounding scene so it is discoverable but not written on top.",
+"notes": "Best when the lettering is nearly swallowed by the native scene system."
+},
+{
+"id": "keep_and_avoid_block",
+"pattern": "Use explicit keep and avoid constraints to prevent drift.",
+"best_use_case": "Reference-driven nail generations and cateye control.",
+"example_structure": "Must keep: exact motifs, shape, palette, 3D gel detail, handmade feel. Avoid: redesign, flattening, generic flowers, angle drift, harsh glare.",
+"notes": "Very useful whenever the model tends to simplify or overinterpret."
+},
+{
+"id": "filled_field_cateye_wording",
+"pattern": "Describe the cateye as a broad filled internal field rather than a shape outline.",
+"best_use_case": "Preventing donut, halo, or spotlight failures in cateye nails.",
+"example_structure": "One continuous filled vertical magnetic field occupying roughly the central 55 to 65 percent of the nail width, with no outline, no hollow center, no ring, and feathered transition into darker edges.",
+"notes": "This is the key cateye geometry pattern."
+},
+{
+"id": "approved_output_promotion",
+"pattern": "Promote approved generations into the reference chain.",
+"best_use_case": "Iterative workflows after partial success.",
+"example_structure": "This approved output is now the current source of truth. Keep composition, spacing, lighting, and all other elements locked. Change only X.",
+"notes": "Very effective for local corrections and consistency."
+},
+{
+"id": "visible_only_scope_reduction",
+"pattern": "Reduce scope to visible-only information when the source is incomplete.",
+"best_use_case": "Incomplete hand-shot references.",
+"example_structure": "Use only the clearly visible nails as source truth. Do not guess the unseen nails.",
+"notes": "Reduces invented details and false continuity."
+},
+{
+"id": "realism_through_restraint",
+"pattern": "Create realism through controlled imperfection and restraint.",
+"best_use_case": "Handmade nails and product images that risk feeling too polished.",
+"example_structure": "Keep believable gel thickness, slight asymmetry, realistic sidewalls, controlled but not sterile gloss, and minor handmade irregularity.",
+"notes": "Useful across flatlays, hand shots, and macro single-nail shots."
+}
+]
+}
