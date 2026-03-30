@@ -1,7 +1,7 @@
 import './OperatorConsole.css'
 import LatestRunHero from './sections/LatestRunHero'
 import FastFeedback from './sections/FastFeedback'
-import NextAttempt from './sections/NextAttempt'
+import RunNextAttempt from './sections/RunNextAttempt'
 import RecentHistory from './sections/RecentHistory'
 import ContextSnapshot from './sections/ContextSnapshot'
 
@@ -74,11 +74,15 @@ export default function OperatorConsole({
         </section>
       </div>
 
-      {/* Next Attempt */}
+      {/* Run Next Attempt — handoff bridge */}
       <section className="section">
-        <NextAttempt
+        <RunNextAttempt
           session={session}
-          lockedCount={(lockedElements || []).filter((el) => el.enabled).length}
+          lockedElements={lockedElements}
+          refs={refs}
+          iterationContext={iterationContext}
+          outputs={outputs}
+          winners={winners}
         />
       </section>
     </div>
