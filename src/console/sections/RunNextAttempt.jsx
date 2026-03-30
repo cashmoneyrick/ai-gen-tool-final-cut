@@ -13,6 +13,7 @@ export default function RunNextAttempt({
   const [reason, setReason] = useState('')
   const [modelOverride, setModelOverride] = useState('')
   const [copied, setCopied] = useState(null) // 'json' | 'cmd' | null
+  const [saved, setSaved] = useState(false) // handoff file saved to disk
 
   const enabledLocked = (lockedElements || []).filter((el) => el.enabled)
   const activeRefs = (refs || []).filter((r) => r.send)
@@ -46,23 +47,26 @@ export default function RunNextAttempt({
 
   const decisionJson = JSON.stringify(decisionPayload, null, 2)
 
-  // CLI command — use --decision-file if there's content, otherwise direct flags
-  const cliCommand = useMemo(() => {
-    const parts = ['node --env-file=.env operator/run.js']
-    if (Object.keys(decisionPayload).length > 0) {
-      parts.push('--decision-file /tmp/decision.json')
-    }
-    return parts.join(' ')
-  }, [decisionPayload])
+  // CLI command using the real handoff file path
+  const fileCommand = 'node --env-file=.env operator/run.js --decision-file data/handoff.json'
+  const plainCommand = 'node --env-file=.env operator/run.js'
 
-  // Alternative: direct flags command (no file needed)
-  const directCommand = useMemo(() => {
-    const parts = ['node --env-file=.env operator/run.js']
-    if (intent.trim()) parts.push(`--intent "${intent.trim()}"`)
-    if (reason.trim()) parts.push(`--reason "${reason.trim()}"`)
-    if (modelOverride.trim()) parts.push(`--model ${modelOverride.trim()}`)
-    return parts.join(' ')
-  }, [intent, reason, modelOverride])
+  // Save handoff JSON to data/handoff.json via API
+  const handleSaveHandoff = async () => {
+    try {
+      const res = await fetch('/api/handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(decisionPayload),
+      })
+      if (res.ok) {
+        setSaved(true)
+        setTimeout(() => setSaved(false), 3000)
+      }
+    } catch (err) {
+      console.error('Failed to save handoff:', err)
+    }
+  }
 
   const handleCopy = async (text, label) => {
     try {
@@ -270,20 +274,29 @@ export default function RunNextAttempt({
       {/* Divider */}
       <div style={{ borderTop: '1px solid var(--border-light)', margin: '4px 0' }} />
 
-      {/* Decision JSON */}
+      {/* Decision JSON + Save */}
       {hasDecisionContent && (
         <div style={{ marginBottom: '8px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
               Decision JSON
             </span>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => handleCopy(decisionJson, 'json')}
-              style={{ fontSize: '11px' }}
-            >
-              {copied === 'json' ? 'Copied!' : 'Copy JSON'}
-            </button>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => handleCopy(decisionJson, 'json')}
+                style={{ fontSize: '11px' }}
+              >
+                {copied === 'json' ? 'Copied!' : 'Copy'}
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleSaveHandoff}
+                style={{ fontSize: '11px' }}
+              >
+                {saved ? 'Saved!' : 'Save to data/handoff.json'}
+              </button>
+            </div>
           </div>
           <pre style={{
             fontFamily: 'var(--font-mono)', fontSize: '11px',
@@ -301,14 +314,11 @@ export default function RunNextAttempt({
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
           <span style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-            {hasDecisionContent ? 'Run (with decision file)' : 'Run (uses session state)'}
+            {hasDecisionContent ? 'Run with decision file' : 'Run (uses session state)'}
           </span>
           <button
             className="btn btn-ghost btn-sm"
-            onClick={() => handleCopy(
-              hasDecisionContent ? directCommand : 'node --env-file=.env operator/run.js',
-              'cmd'
-            )}
+            onClick={() => handleCopy(hasDecisionContent ? fileCommand : plainCommand, 'cmd')}
             style={{ fontSize: '11px' }}
           >
             {copied === 'cmd' ? 'Copied!' : 'Copy Command'}
@@ -321,23 +331,11 @@ export default function RunNextAttempt({
           padding: '8px 10px', margin: 0, whiteSpace: 'pre-wrap',
           lineHeight: '1.4',
         }}>
-          {hasDecisionContent ? directCommand : 'node --env-file=.env operator/run.js'}
+          {hasDecisionContent ? fileCommand : plainCommand}
         </pre>
-
-        {hasDecisionContent && (
-          <div style={{ marginTop: '6px' }}>
-            <div style={{
-              fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic',
-            }}>
-              Or save the JSON above to a file and run:
-            </div>
-            <pre style={{
-              fontFamily: 'var(--font-mono)', fontSize: '11px',
-              color: 'var(--text-muted)',
-              padding: '4px 0', margin: 0, whiteSpace: 'pre-wrap',
-            }}>
-              {cliCommand}
-            </pre>
+        {hasDecisionContent && !saved && (
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', fontStyle: 'italic' }}>
+            Click "Save to data/handoff.json" above first, then run the command.
           </div>
         )}
       </div>

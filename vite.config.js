@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
         configureServer(server) {
           // Shared storage CRUD (must be before specific routes)
           server.middlewares.use((req, res, next) => {
-            if (req.url.startsWith('/api/store/') || req.url.startsWith('/api/meta/') || req.url === '/api/migrate') {
+            if (req.url.startsWith('/api/store/') || req.url.startsWith('/api/meta/') || req.url === '/api/migrate' || req.url === '/api/handoff') {
               return handleStoreAPI(req, res, next)
             }
             next()

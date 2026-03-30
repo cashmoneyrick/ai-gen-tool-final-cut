@@ -17,6 +17,9 @@
  *   POST   /api/migrate                   → bulk import from IndexedDB dump
  */
 
+import { writeFileSync, renameSync } from 'node:fs'
+import { join } from 'node:path'
+import { randomUUID } from 'node:crypto'
 import * as storage from './storage.js'
 
 function sendJSON(res, status, data) {
@@ -179,10 +182,36 @@ async function handleMigrateRoute(req, res) {
   }
 }
 
+// --- Handoff route handler ---
+// Writes a minimal decision JSON to data/handoff.json for operator/run.js --decision-file
+
+const HANDOFF_FILE = join(process.cwd(), 'data', 'handoff.json')
+
+async function handleHandoffRoute(req, res) {
+  if (req.method === 'POST') {
+    try {
+      const body = await readBody(req)
+      const tmp = join(process.cwd(), 'data', `handoff.tmp.${randomUUID()}.json`)
+      writeFileSync(tmp, JSON.stringify(body, null, 2), 'utf-8')
+      renameSync(tmp, HANDOFF_FILE)
+      return sendJSON(res, 200, { ok: true, path: 'data/handoff.json' })
+    } catch (err) {
+      return sendError(res, 500, err.message)
+    }
+  }
+  return sendError(res, 405, 'POST only')
+}
+
 // --- Main middleware entry point ---
 
 export function handleStoreAPI(req, res, next) {
   const route = parseRoute(req.url)
+
+  // Handle /api/handoff separately (not a store route)
+  if (req.url.split('?')[0] === '/api/handoff') {
+    return handleHandoffRoute(req, res)
+  }
+
   if (!route) return next()
 
   switch (route.type) {
