@@ -19,6 +19,17 @@ export default function RecentHistory({ outputs, winners, currentOutputId }) {
   const winnerIds = new Set(winners?.map((w) => w.outputId) || [])
   const isCurrent = (outputId) => outputId === currentOutputId
 
+  if (!outputs || outputs.length === 0) {
+    return (
+      <div className="op-history section">
+        <div className="section-title">Recent History</div>
+        <div style={{ padding: '20px 0', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '13px' }}>
+          No outputs yet. Generate images in Studio to see history here.
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="op-history section">
       <div className="section-title">Recent History</div>

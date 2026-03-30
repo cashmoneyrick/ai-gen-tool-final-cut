@@ -1,20 +1,22 @@
 import './OperatorConsole.css'
-import {
-  MOCK_PROJECT,
-  MOCK_SESSION,
-  MOCK_LOCKED_ELEMENTS,
-  MOCK_OUTPUTS,
-  MOCK_WINNERS,
-} from './mockData'
 import LatestRunHero from './sections/LatestRunHero'
 import FastFeedback from './sections/FastFeedback'
 import NextAttempt from './sections/NextAttempt'
 import RecentHistory from './sections/RecentHistory'
 import ContextSnapshot from './sections/ContextSnapshot'
 
-export default function OperatorConsole({ onClose }) {
-  // Get latest output (first in array)
-  const latestOutput = MOCK_OUTPUTS[0]
+export default function OperatorConsole({
+  onClose,
+  outputs,
+  winners,
+  project,
+  session,
+  lockedElements,
+  refs,
+  iterationContext,
+}) {
+  const latestOutput = outputs?.[0] || null
+  const hasOutputs = outputs && outputs.length > 0
 
   return (
     <div className="op-console">
@@ -22,7 +24,9 @@ export default function OperatorConsole({ onClose }) {
       <div className="op-console-header">
         <div className="op-console-title">Operator Console</div>
         <div className="op-console-badges">
-          <span className="op-badge op-badge-model">Mock Data</span>
+          {project && (
+            <span className="op-badge op-badge-model">{project.name}</span>
+          )}
           <button className="btn btn-ghost btn-sm" onClick={onClose}>
             ← Back to Studio
           </button>
@@ -31,11 +35,14 @@ export default function OperatorConsole({ onClose }) {
 
       {/* Hero Section */}
       <section className="section">
-        <LatestRunHero output={latestOutput} />
+        <LatestRunHero
+          output={latestOutput}
+          iterationContext={iterationContext}
+        />
       </section>
 
-      {/* Fast Feedback */}
-      <FastFeedback output={latestOutput} />
+      {/* Fast Feedback — still mock for actions, reads output.feedback for display */}
+      {latestOutput && <FastFeedback output={latestOutput} />}
 
       {/* Split Layout: History on left, Context on right */}
       <div
@@ -47,8 +54,8 @@ export default function OperatorConsole({ onClose }) {
       >
         {/* History */}
         <RecentHistory
-          outputs={MOCK_OUTPUTS}
-          winners={MOCK_WINNERS}
+          outputs={outputs || []}
+          winners={winners || []}
           currentOutputId={latestOutput?.id}
         />
 
@@ -57,10 +64,11 @@ export default function OperatorConsole({ onClose }) {
           <div className="section-title">Context</div>
           <div style={{ marginTop: '12px' }}>
             <ContextSnapshot
-              project={MOCK_PROJECT}
-              session={MOCK_SESSION}
-              lockedElements={MOCK_LOCKED_ELEMENTS}
-              output={latestOutput}
+              project={project}
+              session={session}
+              lockedElements={lockedElements || []}
+              refs={refs || []}
+              iterationContext={iterationContext}
             />
           </div>
         </section>
@@ -69,8 +77,8 @@ export default function OperatorConsole({ onClose }) {
       {/* Next Attempt */}
       <section className="section">
         <NextAttempt
-          session={MOCK_SESSION}
-          lockedCount={MOCK_LOCKED_ELEMENTS.filter((el) => el.enabled).length}
+          session={session}
+          lockedCount={(lockedElements || []).filter((el) => el.enabled).length}
         />
       </section>
     </div>

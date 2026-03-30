@@ -1156,7 +1156,16 @@ export default function App() {
         </button>
       </header>
       {consoleOpen ? (
-        <OperatorConsole onClose={() => setConsoleOpen(false)} />
+        <OperatorConsole
+          onClose={() => setConsoleOpen(false)}
+          outputs={outputsWithDisplayIds}
+          winners={winnersWithDisplayIds}
+          project={projects.find(p => p.id === activeProjectId)}
+          session={{ goal, model, assembledPrompt: assembled }}
+          lockedElements={lockedElements}
+          refs={refs}
+          iterationContext={iterationContext}
+        />
       ) : (
         <>
       <ProjectBar

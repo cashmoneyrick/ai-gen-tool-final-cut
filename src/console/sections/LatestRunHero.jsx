@@ -1,9 +1,16 @@
-export default function LatestRunHero({ output }) {
+export default function LatestRunHero({ output, iterationContext }) {
   if (!output) {
-    return <div className="section" style={{ padding: '40px 16px' }}>No output available</div>
+    return (
+      <div className="op-hero" style={{ gridTemplateColumns: '1fr' }}>
+        <div style={{ padding: '40px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          No outputs yet. Generate an image in Studio to see it here.
+        </div>
+      </div>
+    )
   }
 
   const getModelShortName = (model) => {
+    if (!model) return 'Unknown'
     if (model.includes('pro')) return 'Imagen Pro'
     if (model.includes('flash')) return 'Flash'
     return 'Imagen'
@@ -20,11 +27,14 @@ export default function LatestRunHero({ output }) {
     return new Date(timestamp).toLocaleDateString()
   }
 
-  const contextSnapshot = output.operatorDecision?.contextSnapshot || {
-    lockedCount: 0,
-    refsCount: 0,
-    carryForwardSummary: null,
-  }
+  // Derive context indicators from real data
+  const isOperator = output.operatorDecision?.operatorMode === true
+  const lockedCount =
+    output.activeLockedElementsSnapshot?.length ??
+    output.operatorDecision?.contextSnapshot?.lockedCount ??
+    0
+  const refsCount = output.sentRefs?.length ?? 0
+  const hasCarryForward = iterationContext != null || output.iterationPreamble != null
 
   return (
     <div className="op-hero">
@@ -38,32 +48,34 @@ export default function LatestRunHero({ output }) {
             {output.feedback === 'up' && '👍'}
             {output.feedback === 'down' && '👎'}
             {!output.feedback && '○'}
-            <span>Latest Output</span>
+            <span>{output.displayId || 'Latest Output'}</span>
           </div>
           <div className="op-hero-subtitle">{getRelativeTime(output.createdAt)}</div>
         </div>
 
-        {output.operatorDecision?.operatorMode && (
-          <>
-            <div className="op-hero-meta-row">
-              <div className="op-hero-meta-label">Source</div>
-              <span className="op-badge op-badge-operator">Operator</span>
-            </div>
+        {/* Source badge — Operator vs UI */}
+        <div className="op-hero-meta-row">
+          <div className="op-hero-meta-label">Source</div>
+          {isOperator ? (
+            <span className="op-badge op-badge-operator">Operator</span>
+          ) : (
+            <span className="op-badge op-badge-ui">UI</span>
+          )}
+        </div>
 
-            {output.operatorDecision.intent && (
-              <div className="op-hero-meta-row">
-                <div className="op-hero-meta-label">Intent</div>
-                <div className="op-hero-meta-value">{output.operatorDecision.intent}</div>
-              </div>
-            )}
+        {/* Intent/Reason — only for operator-generated outputs */}
+        {isOperator && output.operatorDecision.intent && (
+          <div className="op-hero-meta-row">
+            <div className="op-hero-meta-label">Intent</div>
+            <div className="op-hero-meta-value">{output.operatorDecision.intent}</div>
+          </div>
+        )}
 
-            {output.operatorDecision.reason && (
-              <div className="op-hero-meta-row">
-                <div className="op-hero-meta-label">Reason</div>
-                <div className="op-hero-meta-value">{output.operatorDecision.reason}</div>
-              </div>
-            )}
-          </>
+        {isOperator && output.operatorDecision.reason && (
+          <div className="op-hero-meta-row">
+            <div className="op-hero-meta-label">Reason</div>
+            <div className="op-hero-meta-value">{output.operatorDecision.reason}</div>
+          </div>
         )}
 
         <div className="op-hero-meta-row">
@@ -76,28 +88,28 @@ export default function LatestRunHero({ output }) {
           <div className="op-hero-prompt">{output.finalPromptSent}</div>
         </div>
 
-        <div className="op-hero-meta-row">
-          <div className="op-hero-meta-label">Duration</div>
-          <div className="op-hero-meta-value">{output.metadata?.durationMs}ms</div>
-        </div>
+        {output.metadata?.durationMs && (
+          <div className="op-hero-meta-row">
+            <div className="op-hero-meta-label">Duration</div>
+            <div className="op-hero-meta-value">
+              {(output.metadata.durationMs / 1000).toFixed(1)}s
+            </div>
+          </div>
+        )}
 
-        {(contextSnapshot.lockedCount > 0 ||
-          contextSnapshot.refsCount > 0 ||
-          contextSnapshot.carryForwardSummary) && (
+        {(lockedCount > 0 || refsCount > 0 || hasCarryForward) && (
           <div className="op-hero-meta-row">
             <div className="op-hero-meta-label">Context</div>
             <div className="op-hero-indicators">
-              {contextSnapshot.carryForwardSummary && (
-                <div className="op-indicator-chip">🔄 Carry</div>
-              )}
-              {contextSnapshot.lockedCount > 0 && (
+              {hasCarryForward && <div className="op-indicator-chip">🔄 Carry</div>}
+              {lockedCount > 0 && (
                 <div className="op-indicator-chip">
-                  🔒 <strong>{contextSnapshot.lockedCount}</strong> locked
+                  🔒 <strong>{lockedCount}</strong> locked
                 </div>
               )}
-              {contextSnapshot.refsCount > 0 && (
+              {refsCount > 0 && (
                 <div className="op-indicator-chip">
-                  📎 <strong>{contextSnapshot.refsCount}</strong> refs
+                  📎 <strong>{refsCount}</strong> ref{refsCount > 1 ? 's' : ''}
                 </div>
               )}
             </div>

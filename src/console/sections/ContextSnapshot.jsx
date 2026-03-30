@@ -1,22 +1,22 @@
-export default function ContextSnapshot({ project, session, lockedElements, output }) {
-  const contextSnapshot = output?.operatorDecision?.contextSnapshot || {
-    carryForwardSummary: null,
-    lockedCount: 0,
-    refsCount: 0,
-  }
+import { summarizeIterationContext } from '../../planning/iterationContext'
 
+export default function ContextSnapshot({ project, session, lockedElements, refs, iterationContext }) {
   const enabledLocked = lockedElements?.filter((el) => el.enabled) || []
+  const activeRefs = refs?.filter((r) => r.send) || []
+  const carryForwardSummary = summarizeIterationContext(iterationContext)
 
   return (
     <div className="op-context">
       {/* Project & Goal */}
       <div className="op-context-card">
         <div className="op-context-label">Project</div>
-        <div className="op-context-value">{project?.name || 'Unknown'}</div>
+        <div className="op-context-value">{project?.name || 'No project'}</div>
 
         <div style={{ marginTop: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '8px' }}>
           <div className="op-context-label">Goal</div>
-          <div className="op-context-value op-context-value-goal">{session?.goal || 'No goal set'}</div>
+          <div className="op-context-value op-context-value-goal">
+            {session?.goal || 'No goal set'}
+          </div>
         </div>
       </div>
 
@@ -40,16 +40,18 @@ export default function ContextSnapshot({ project, session, lockedElements, outp
         <div style={{ marginTop: '8px', borderTop: '1px solid var(--border-light)', paddingTop: '8px' }}>
           <div className="op-context-label">Refs</div>
           <div className="op-context-value">
-            {contextSnapshot.refsCount > 0 ? `${contextSnapshot.refsCount} reference image${contextSnapshot.refsCount > 1 ? 's' : ''}` : 'None'}
+            {activeRefs.length > 0
+              ? `${activeRefs.length} reference image${activeRefs.length > 1 ? 's' : ''} selected`
+              : 'None'}
           </div>
         </div>
       </div>
 
       {/* Carry-forward context */}
-      {contextSnapshot.carryForwardSummary && (
+      {carryForwardSummary && (
         <div className="op-context-card" style={{ gridColumn: '1 / -1' }}>
           <div className="op-context-label">Iteration Guidance</div>
-          <div className="op-context-preamble">{contextSnapshot.carryForwardSummary}</div>
+          <div className="op-context-preamble">{carryForwardSummary}</div>
         </div>
       )}
     </div>
