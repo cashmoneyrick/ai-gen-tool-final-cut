@@ -1,4 +1,5 @@
 import './OperatorConsole.css'
+import LastRunReceipt from './sections/LastRunReceipt'
 import LatestRunHero from './sections/LatestRunHero'
 import FastFeedback from './sections/FastFeedback'
 import RunNextAttempt from './sections/RunNextAttempt'
@@ -32,6 +33,9 @@ export default function OperatorConsole({
           </button>
         </div>
       </div>
+
+      {/* Last Run Receipt */}
+      <LastRunReceipt output={latestOutput} />
 
       {/* Hero Section */}
       <section className="section">
