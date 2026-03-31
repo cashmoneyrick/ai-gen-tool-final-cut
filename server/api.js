@@ -17,10 +17,11 @@
  *   POST   /api/migrate                   → bulk import from IndexedDB dump
  */
 
-import { writeFileSync, renameSync } from 'node:fs'
+import { writeFileSync, renameSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import * as storage from './storage.js'
+import { suppressLiveSyncFor } from './live-sync.js'
 
 function sendJSON(res, status, data) {
   res.statusCode = status
@@ -94,6 +95,7 @@ async function handleStoreRoute(req, res, parts) {
     try {
       const records = await readBody(req)
       if (!Array.isArray(records)) return sendError(res, 400, 'Body must be an array')
+      suppressLiveSyncFor(storeName)
       storage.putMany(storeName, records)
       return sendJSON(res, 200, { ok: true, count: records.length })
     } catch (err) {
@@ -118,6 +120,7 @@ async function handleStoreRoute(req, res, parts) {
       try {
         const record = await readBody(req)
         if (!record || !record.id) return sendError(res, 400, 'Record must have an id field')
+        suppressLiveSyncFor(storeName)
         storage.put(storeName, record)
         return sendJSON(res, 200, { ok: true })
       } catch (err) {
@@ -127,10 +130,12 @@ async function handleStoreRoute(req, res, parts) {
 
     case 'DELETE': {
       if (id) {
+        suppressLiveSyncFor(storeName)
         storage.del(storeName, id)
         return sendJSON(res, 200, { ok: true })
       }
       // DELETE without id = clearStore
+      suppressLiveSyncFor(storeName)
       storage.clearStore(storeName)
       return sendJSON(res, 200, { ok: true })
     }
@@ -186,30 +191,112 @@ async function handleMigrateRoute(req, res) {
 // Writes a minimal decision JSON to data/handoff.json for operator/run.js --decision-file
 
 const HANDOFF_FILE = join(process.cwd(), 'data', 'handoff.json')
+const BASELINES_FILE = join(process.cwd(), 'data', 'handoff-baselines.json')
+
+function readBaselines() {
+  try {
+    if (existsSync(BASELINES_FILE)) return JSON.parse(readFileSync(BASELINES_FILE, 'utf-8'))
+  } catch {}
+  return {}
+}
+
+function writeBaselines(baselines) {
+  const tmp = join(process.cwd(), 'data', `handoff-baselines.tmp.${randomUUID()}.json`)
+  writeFileSync(tmp, JSON.stringify(baselines, null, 2), 'utf-8')
+  renameSync(tmp, BASELINES_FILE)
+}
 
 async function handleHandoffRoute(req, res) {
+  if (req.method === 'GET') {
+    try {
+      if (existsSync(HANDOFF_FILE)) {
+        const data = JSON.parse(readFileSync(HANDOFF_FILE, 'utf-8'))
+        return sendJSON(res, 200, data)
+      }
+      return sendJSON(res, 200, null)
+    } catch {
+      return sendJSON(res, 200, null)
+    }
+  }
   if (req.method === 'POST') {
     try {
       const body = await readBody(req)
+      // Write decision handoff for operator
       const tmp = join(process.cwd(), 'data', `handoff.tmp.${randomUUID()}.json`)
       writeFileSync(tmp, JSON.stringify(body, null, 2), 'utf-8')
       renameSync(tmp, HANDOFF_FILE)
+      // Also persist per-project review baseline
+      if (body.projectId && body.reviewSnapshot) {
+        const baselines = readBaselines()
+        baselines[body.projectId] = body.reviewSnapshot
+        writeBaselines(baselines)
+      }
       return sendJSON(res, 200, { ok: true, path: 'data/handoff.json' })
     } catch (err) {
       return sendError(res, 500, err.message)
     }
   }
-  return sendError(res, 405, 'POST only')
+  return sendError(res, 405, 'GET or POST only')
+}
+
+// Per-project baseline endpoint
+async function handleBaselineRoute(req, res, projectId) {
+  if (req.method === 'GET') {
+    const baselines = readBaselines()
+    return sendJSON(res, 200, baselines[projectId] || null)
+  }
+  return sendError(res, 405, 'GET only')
 }
 
 // --- Main middleware entry point ---
+
+/* ── Lightweight project stats (no base64 sent to client) ── */
+
+const PRICING_SERVER = {
+  'gemini-3.1-flash-image-preview': { inputPerM: 0.50, imageOutputPerM: 60.00 },
+  'gemini-3-pro-image-preview': { inputPerM: 2.00, imageOutputPerM: 120.00 },
+}
+const DEFAULT_PRICING_SERVER = PRICING_SERVER['gemini-3.1-flash-image-preview']
+
+function estimateCostServer(output) {
+  const tokens = output?.metadata?.tokenUsage
+  if (!tokens || (!tokens.total && !tokens.prompt && !tokens.output)) return 0
+  const pricing = PRICING_SERVER[output.model] || DEFAULT_PRICING_SERVER
+  return ((tokens.prompt || 0) / 1e6) * pricing.inputPerM +
+         ((tokens.output || 0) / 1e6) * pricing.imageOutputPerM
+}
+
+function handleProjectStats(req, res) {
+  if (req.method !== 'GET') return sendJSON(res, 405, { error: 'GET only' })
+  const projects = storage.getAll('projects')
+  const stats = {}
+  for (const p of projects) {
+    const sessions = storage.getAllByIndex('sessions', 'projectId', p.id)
+    const session = sessions[0]
+    if (!session) { stats[p.id] = { outputCount: 0, totalCost: 0 }; continue }
+    const outputs = storage.getAllByIndex('outputs', 'sessionId', session.id)
+    let totalCost = 0
+    for (const o of outputs) totalCost += estimateCostServer(o)
+    stats[p.id] = { outputCount: outputs.length, totalCost }
+  }
+  return sendJSON(res, 200, stats)
+}
 
 export function handleStoreAPI(req, res, next) {
   const route = parseRoute(req.url)
 
   // Handle /api/handoff separately (not a store route)
-  if (req.url.split('?')[0] === '/api/handoff') {
+  const cleanUrl = req.url.split('?')[0]
+  if (cleanUrl === '/api/project-stats') {
+    return handleProjectStats(req, res)
+  }
+  if (cleanUrl === '/api/handoff') {
     return handleHandoffRoute(req, res)
+  }
+  // Handle /api/handoff/baseline/:projectId
+  const baselineMatch = cleanUrl.match(/^\/api\/handoff\/baseline\/(.+)$/)
+  if (baselineMatch) {
+    return handleBaselineRoute(req, res, baselineMatch[1])
   }
 
   if (!route) return next()

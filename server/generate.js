@@ -63,7 +63,7 @@ export async function handleGenerate(req, res) {
     })
   }
 
-  const { prompt, refs = [], model: requestModel } = body
+  const { prompt, refs = [], model: requestModel, imageSize, aspectRatio, thinkingLevel, googleSearch, imageSearch } = body
   if (!prompt || typeof prompt !== 'string') {
     return sendError(res, {
       status: 400, code: 'MISSING_PROMPT',
@@ -74,10 +74,19 @@ export async function handleGenerate(req, res) {
   // Resolve model: client request > env var > default
   const model = requestModel || process.env.GEMINI_MODEL || DEFAULT_MODEL
 
-  console.log(`[generate] received at ${Date.now()} model=${model} refs=${refs.length}`)
+  // Build generation options from request body
+  const options = {}
+  if (imageSize) options.imageSize = imageSize
+  if (aspectRatio) options.aspectRatio = aspectRatio
+  if (thinkingLevel) options.thinkingLevel = thinkingLevel
+  if (googleSearch) options.googleSearch = true
+  if (imageSearch) options.imageSearch = true
+
+  const optionsSummary = Object.keys(options).length > 0 ? ` opts=${JSON.stringify(options)}` : ''
+  console.log(`[generate] received at ${Date.now()} model=${model} refs=${refs.length}${optionsSummary}`)
 
   try {
-    const result = await generateFromGemini(prompt, refs, model, apiKey)
+    const result = await generateFromGemini(prompt, refs, model, apiKey, options)
 
     console.log(`[generate] done model=${model} refs=${refs.length} durationMs=${result.metadata.durationMs} images=${result.images.length} finish=${result.metadata.finishReason || 'unknown'}`)
 

@@ -97,10 +97,32 @@ export function getValidIndexes(storeName) {
 export function put(storeName, record) {
   const records = readStore(storeName)
   const idx = records.findIndex((r) => r.id === record.id)
+
+  let finalRecord = record
+
+  // Sessions: union-merge array ID fields so a stale browser write never evicts
+  // operator-written IDs. outputIds/winnerIds/refIds/lockedElementIds can only grow.
+  if (storeName === 'sessions' && idx >= 0) {
+    const existing = records[idx]
+    const arrayFields = ['outputIds', 'winnerIds', 'refIds', 'lockedElementIds']
+    let merged = { ...record }
+    for (const field of arrayFields) {
+      if (Array.isArray(existing[field]) && Array.isArray(record[field])) {
+        const incomingSet = new Set(record[field])
+        const diskOnlyIds = existing[field].filter((id) => !incomingSet.has(id))
+        if (diskOnlyIds.length > 0) {
+          // Disk-only IDs (added by operator) go to the front — they are newer
+          merged[field] = [...diskOnlyIds, ...record[field]]
+        }
+      }
+    }
+    finalRecord = merged
+  }
+
   if (idx >= 0) {
-    records[idx] = record
+    records[idx] = finalRecord
   } else {
-    records.push(record)
+    records.push(finalRecord)
   }
   writeStore(storeName, records)
 }

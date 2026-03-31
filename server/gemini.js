@@ -8,7 +8,7 @@
  * @param {string} apiKey - Gemini API key.
  * @returns {Promise<{images: Array<{base64: string, mimeType: string}>, text: string|null, metadata: object}>}
  */
-export async function generateFromGemini(prompt, refs = [], model, apiKey) {
+export async function generateFromGemini(prompt, refs = [], model, apiKey, options = {}) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
 
   // Build Gemini-specific parts: text first, then image refs
@@ -22,11 +22,31 @@ export async function generateFromGemini(prompt, refs = [], model, apiKey) {
     })
   }
 
+  // Build generationConfig with optional imageConfig + thinkingConfig
+  const generationConfig = {
+    responseModalities: ['TEXT', 'IMAGE'],
+  }
+
+  if (options.imageSize || options.aspectRatio) {
+    generationConfig.imageConfig = {}
+    if (options.imageSize) generationConfig.imageConfig.imageSize = options.imageSize
+    if (options.aspectRatio) generationConfig.imageConfig.aspectRatio = options.aspectRatio
+  }
+
+  if (options.thinkingLevel && options.thinkingLevel !== 'minimal') {
+    generationConfig.thinkingConfig = { thinkingLevel: options.thinkingLevel }
+  }
+
   const geminiBody = {
     contents: [{ parts }],
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-    },
+    generationConfig,
+  }
+
+  // Google Search grounding (web + optional image search)
+  if (options.googleSearch) {
+    const searchTypes = { webSearch: {} }
+    if (options.imageSearch) searchTypes.imageSearch = {}
+    geminiBody.tools = [{ google_search: { searchTypes } }]
   }
 
   const startTime = Date.now()

@@ -96,10 +96,27 @@ export async function createProject(name) {
   return { projectId, sessionId, project }
 }
 
+export async function listAllProjects() {
+  const all = await db.getAll('projects')
+  return all.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+}
+
 export async function renameProject(projectId, name) {
   const project = await db.get('projects', projectId)
   if (!project) return
   await db.put('projects', { ...project, name, updatedAt: Date.now() })
+}
+
+export async function archiveProject(projectId) {
+  const project = await db.get('projects', projectId)
+  if (!project) return
+  await db.put('projects', { ...project, archived: true, updatedAt: Date.now() })
+}
+
+export async function restoreProject(projectId) {
+  const project = await db.get('projects', projectId)
+  if (!project) return
+  await db.put('projects', { ...project, archived: false, updatedAt: Date.now() })
 }
 
 // --- Bootstrap (ensures default project exists for migration) ---
@@ -402,7 +419,20 @@ export async function saveOutput(projectId, sessionId, output) {
 }
 
 export async function updateOutputIds(sessionId, ids) {
-  await saveSessionFields(sessionId, { outputIds: ids })
+  // Union-merge with disk state to prevent clobbering operator-written IDs.
+  // The operator prepends new output IDs directly to disk. If the browser fires
+  // this function before live-sync has loaded those new IDs into React state,
+  // a plain replace would wipe them. Instead: preserve any IDs on disk that the
+  // browser doesn't know about yet, placing them at the front (newest first).
+  const session = await db.get('sessions', sessionId)
+  if (!session) return
+  const diskIds = session.outputIds || []
+  const browserSet = new Set(ids)
+  const operatorOnlyIds = diskIds.filter((id) => !browserSet.has(id))
+  const merged = [...operatorOnlyIds, ...ids]
+  await db.put('sessions', { ...session, outputIds: merged, updatedAt: Date.now() })
+  const project = await db.get('projects', session.projectId)
+  if (project) await db.put('projects', { ...project, updatedAt: Date.now() })
 }
 
 // --- Winners ---

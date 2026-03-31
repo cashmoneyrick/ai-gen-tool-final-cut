@@ -1113,34 +1113,77 @@ input::placeholder {
   background: var(--accent-dim);
 }
 
-/* === Ref Thumbnails === */
+/* === Ref Cards === */
 
 .ref-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
   margin-top: 10px;
 }
 
-.ref-thumb {
+.ref-card {
   position: relative;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   overflow: hidden;
-  background: var(--bg-hover);
+  background: var(--bg-card);
+  transition: border-color 0.2s, box-shadow 0.2s, opacity 0.2s;
 }
 
-.ref-thumb-img {
+.ref-card:hover {
+  border-color: var(--border-light);
+}
+
+/* Anchored state — amber glow + left accent bar */
+.ref-card-anchored {
+  border-color: rgba(217, 167, 62, 0.4);
+  box-shadow: 0 0 12px rgba(217, 167, 62, 0.08), inset 0 0 0 1px rgba(217, 167, 62, 0.06);
+}
+
+.ref-card-anchored:hover {
+  border-color: rgba(217, 167, 62, 0.6);
+  box-shadow: 0 0 16px rgba(217, 167, 62, 0.12);
+}
+
+.ref-anchor-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(180deg, #d9a73e 0%, #b8862d 100%);
+  z-index: 2;
+  border-radius: 3px 0 0 3px;
+}
+
+/* Excluded state */
+.ref-card-off {
+  opacity: 0.35;
+}
+
+.ref-card-off .ref-card-img {
+  filter: grayscale(0.7);
+}
+
+/* Image area */
+.ref-card-visual {
+  position: relative;
+}
+
+.ref-card-img {
   display: block;
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
+  transition: filter 0.2s;
 }
 
+/* Remove button (X) */
 .ref-thumb-remove {
   position: absolute;
-  top: 3px;
-  right: 3px;
+  top: 4px;
+  right: 4px;
   width: 20px;
   height: 20px;
   border: none;
@@ -1155,14 +1198,37 @@ input::placeholder {
   justify-content: center;
   opacity: 0;
   transition: opacity 0.15s;
+  z-index: 3;
 }
 
-.ref-thumb:hover .ref-thumb-remove {
+.ref-card:hover .ref-thumb-remove {
   opacity: 1;
 }
 
-.ref-thumb-info {
-  padding: 4px 6px;
+/* Anchor badge overlay (top-left) */
+.ref-anchor-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background: rgba(217, 167, 62, 0.85);
+  color: #1a1407;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Card body */
+.ref-card-body {
+  padding: 0;
+}
+
+.ref-card-info {
+  padding: 5px 8px 2px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -1181,21 +1247,20 @@ input::placeholder {
   color: var(--text-muted);
 }
 
-.ref-thumb-off {
-  opacity: 0.4;
-}
-
-.ref-thumb-off .ref-thumb-img {
-  filter: grayscale(0.6);
+/* Control row */
+.ref-card-controls {
+  display: flex;
+  gap: 1px;
+  padding: 4px 4px 2px;
 }
 
 .ref-send-toggle {
-  display: block;
-  width: 100%;
-  padding: 3px 6px;
+  flex: 1;
+  padding: 3px 4px;
   border: none;
+  border-radius: 3px;
   font-family: var(--font);
-  font-size: 10px;
+  font-size: 9px;
   cursor: pointer;
   text-align: center;
   transition: background 0.1s, color 0.1s;
@@ -1220,6 +1285,129 @@ input::placeholder {
   color: var(--text-secondary);
 }
 
+/* Anchor toggle button */
+.ref-anchor-toggle {
+  width: 26px;
+  height: 22px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+
+.ref-anchor-on {
+  background: rgba(217, 167, 62, 0.2);
+  color: #d9a73e;
+}
+
+.ref-anchor-on:hover {
+  background: rgba(217, 167, 62, 0.3);
+}
+
+.ref-anchor-off {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.ref-anchor-off:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+/* Notes button */
+.ref-notes-btn {
+  width: 26px;
+  height: 22px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  transition: background 0.1s, color 0.1s;
+}
+
+.ref-notes-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.ref-notes-btn-active {
+  background: rgba(143, 155, 174, 0.15);
+  color: var(--accent);
+}
+
+/* Expandable notes area */
+.ref-notes-area {
+  padding: 4px 6px 6px;
+}
+
+.ref-notes-input {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 10px;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 36px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.ref-notes-input:focus {
+  border-color: var(--accent);
+}
+
+.ref-notes-input::placeholder {
+  color: var(--text-muted);
+}
+
+.ref-notes-display {
+  padding: 3px 6px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  cursor: text;
+  border-radius: 3px;
+  transition: background 0.1s;
+  word-break: break-word;
+}
+
+.ref-notes-display:hover {
+  background: var(--bg-hover);
+}
+
+.ref-notes-placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Collapsed notes preview */
+.ref-notes-preview {
+  padding: 2px 8px 4px;
+  font-size: 9px;
+  line-height: 1.3;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: color 0.1s;
+}
+
+.ref-notes-preview:hover {
+  color: var(--text-secondary);
+}
+
 .refs-count {
   font-family: var(--font);
   font-size: 11px;
@@ -1231,8 +1419,8 @@ input::placeholder {
 
 .ref-lifecycle {
   display: block;
-  font-size: 10px;
-  padding: 2px 8px;
+  font-size: 9px;
+  padding: 2px 8px 4px;
   text-align: center;
   font-family: var(--font-mono);
   letter-spacing: 0.01em;

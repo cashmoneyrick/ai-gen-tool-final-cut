@@ -16,7 +16,7 @@ import * as storage from '../server/storage.js'
 import { buildIterationContext, summarizeIterationContext } from '../src/planning/iterationContext.js'
 import { getEffectiveFeedback } from '../src/reviewFeedback.js'
 
-const MAX_RECENT_OUTPUTS = 5
+const MAX_RECENT_OUTPUTS = 12
 const MAX_WINNERS = 10
 const MAX_MEMORIES = 12
 const MAX_PROMPT_PREVIEW = 200
@@ -73,6 +73,44 @@ export function buildOperatorContext(projectId) {
     ? Math.round((feedbackCounts.up / totalWithFeedback) * 100)
     : null
 
+  // Aggregate ALL feedback notes across all outputs (not just recent N)
+  const MAX_FEEDBACK_NOTES = 15
+  const seenBatchKeep = new Set()
+  const seenBatchFix = new Set()
+  const batchKeep = []
+  const batchFix = []
+  const imageKeep = []
+  const imageFix = []
+  let rejectionsWithoutNotes = 0
+
+  for (const o of orderedOutputs) {
+    if (o.notesKeep && o.notesKeep.trim().length > 5 && imageKeep.length < MAX_FEEDBACK_NOTES) {
+      imageKeep.push({ text: o.notesKeep.trim(), outputId: o.id })
+    }
+    if (o.notesFix && o.notesFix.trim().length > 5 && imageFix.length < MAX_FEEDBACK_NOTES) {
+      imageFix.push({ text: o.notesFix.trim(), outputId: o.id })
+    }
+    if (o.batchNotesKeep && o.batchNotesKeep.trim().length > 5 && !seenBatchKeep.has(o.batchNotesKeep.trim())) {
+      seenBatchKeep.add(o.batchNotesKeep.trim())
+      batchKeep.push({ text: o.batchNotesKeep.trim(), batchCreatedAt: o.createdAt })
+    }
+    if (o.batchNotesFix && o.batchNotesFix.trim().length > 5 && !seenBatchFix.has(o.batchNotesFix.trim())) {
+      seenBatchFix.add(o.batchNotesFix.trim())
+      batchFix.push({ text: o.batchNotesFix.trim(), batchCreatedAt: o.createdAt })
+    }
+    if (o.feedback === 'down' && (!o.notesFix || o.notesFix.trim().length <= 5)) {
+      rejectionsWithoutNotes++
+    }
+  }
+
+  const feedbackSummary = {
+    batchKeep,
+    batchFix,
+    imageKeep,
+    imageFix,
+    totalNotes: batchKeep.length + batchFix.length + imageKeep.length + imageFix.length,
+  }
+
   // Load memories (active only)
   const allMemories = storage.getAllByIndex('memories', 'projectId', resolvedProjectId)
   const activeMemories = allMemories
@@ -105,11 +143,17 @@ export function buildOperatorContext(projectId) {
       name: r.name,
       type: r.type,
       send: r.send,
+      anchor: r.anchor || false,
+      notes: r.notes || '',
     })),
     recentOutputs: orderedOutputs.slice(0, MAX_RECENT_OUTPUTS).map((o) => ({
       id: o.id,
       model: o.model,
       feedback: o.feedback,
+      notesKeep: o.notesKeep || '',
+      notesFix: o.notesFix || '',
+      batchNotesKeep: o.batchNotesKeep || '',
+      batchNotesFix: o.batchNotesFix || '',
       prompt: truncate(o.finalPromptSent),
       createdAt: o.createdAt,
       operatorMode: o.operatorDecision?.operatorMode || false,
@@ -133,10 +177,12 @@ export function buildOperatorContext(projectId) {
       text: truncate(m.text),
       pinned: m.pinned,
     })),
+    feedbackSummary,
     stats: {
       totalOutputs: orderedOutputs.length,
       totalWinners: orderedWinners.length,
       positiveRate,
+      rejectionsWithoutNotes,
     },
   }
 }
