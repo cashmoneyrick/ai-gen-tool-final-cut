@@ -29,15 +29,6 @@ export function buildIterationContext(winners, outputsById) {
       if (output.notesFix && output.notesFix.trim().length > 5) {
         change.push({ source: 'notes', text: output.notesFix.trim(), outputId: output.id, createdAt: output.createdAt })
       }
-      // Rating-based signals (when no written notes exist)
-      const rating = normalizeFeedback(output.feedback)
-      if (rating !== null && rating >= 4 && (!output.notesKeep || output.notesKeep.trim().length <= 5)) {
-        preserve.push({ source: 'rating', text: `Rated ${rating}/5 - overall direction is good`, outputId: output.id, createdAt: output.createdAt })
-      }
-      if (rating !== null && rating <= 2 && (!output.notesFix || output.notesFix.trim().length <= 5)) {
-        change.push({ source: 'rating', text: `Rated ${rating}/5 - significant changes needed`, outputId: output.id, createdAt: output.createdAt })
-      }
-
       // Batch-level notes (deduplicate — same text is on every output in the batch)
       if (output.batchNotesKeep && output.batchNotesKeep.trim().length > 5) {
         const key = `keep:${output.batchNotesKeep.trim()}`
@@ -203,16 +194,27 @@ export function formatIterationContextForGeneration(ctx) {
   const batchChanges = ctx.change.filter((c) => c.source === 'batch-notes')
   const noteChanges = ctx.change.filter((c) => c.source === 'notes')
 
-  // Batch notes: up to 3 keep + 3 fix (250 char each)
-  const usedBatchPreserves = batchPreserves.slice(0, 3)
+  // Batch notes: up to 2 keep + 2 fix, sorted newest first (250 char each)
+  const usedBatchPreserves = batchPreserves
+    .sort((a, b) => (b.batchCreatedAt || 0) - (a.batchCreatedAt || 0))
+    .slice(0, 2)
     .map((p) => ({ ...p, text: p.text.slice(0, 250) }))
-  const usedBatchChanges = batchChanges.slice(0, 3)
+  const usedBatchChanges = batchChanges
+    .sort((a, b) => (b.batchCreatedAt || 0) - (a.batchCreatedAt || 0))
+    .slice(0, 2)
     .map((c) => ({ ...c, text: c.text.slice(0, 250) }))
 
-  // Per-image notes: up to 6 keep + 6 fix (250 char each)
-  const usedNotePreserves = notePreserves.slice(0, 6)
+  // Per-image notes: up to 3 keep + 3 fix, sorted newest first (250 char each)
+  // Filter out vague rating-only entries in case any exist in older data
+  const usedNotePreserves = notePreserves
+    .filter((p) => p.source !== 'rating')
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, 3)
     .map((p) => ({ ...p, text: p.text.slice(0, 250) }))
-  const usedNoteChanges = noteChanges.slice(0, 6)
+  const usedNoteChanges = noteChanges
+    .filter((c) => c.source !== 'rating')
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, 3)
     .map((c) => ({ ...c, text: c.text.slice(0, 250) }))
 
   // Determine the 2 most recent batch timestamps for recency labels
@@ -261,28 +263,39 @@ export function formatIterationContextForGeneration(ctx) {
     return persistentFixes.has(key) ? `PERSISTENT UNRESOLVED: ${c.text}` : c.text
   }
 
-  // Build compact preamble — batch notes get uppercase labels for priority, notes tagged with recency
-  const parts = []
-  if (usedBatchPreserves.length > 0) {
-    parts.push(`KEEP (batch): ${usedBatchPreserves.map((p) => tagNote(p)).join('; ')}`)
-  }
-  if (usedNotePreserves.length > 0) {
-    parts.push(`keep: ${usedNotePreserves.map((p) => tagNote(p)).join('; ')}`)
-  }
-  if (usedBucketPreserves.length > 0) {
-    parts.push(`keep buckets: ${usedBucketPreserves.map((p) => p.text).join('; ')}`)
-  }
+  // Build tiered preamble — winner and batch notes are highest priority, image notes are supporting
+  const sections = []
+
+  // Tier 1: Winner reference (strongest signal — replicate the proven recipe)
   if (usedWinnerPrompts.length > 0) {
-    parts.push(`WINNER REFERENCE (replicate this): ${usedWinnerPrompts[0].text}`)
-  }
-  if (usedBatchChanges.length > 0) {
-    parts.push(`CRITICAL FIX (batch): ${usedBatchChanges.map((c) => { const t = tagNote({ ...c, text: escalateTag(c) }); return t }).join('; ')}`)
-  }
-  if (usedNoteChanges.length > 0) {
-    parts.push(`MUST FIX: ${usedNoteChanges.map((c) => { const t = tagNote({ ...c, text: escalateTag(c) }); return t }).join('; ')}`)
+    sections.push(`[WINNER REFERENCE — closely replicate this proven prompt: ${usedWinnerPrompts[0].text}]`)
   }
 
-  const preamble = `[MANDATORY iteration directives — ${parts.join('. ')}.]`
+  // Tier 2: Explicit batch-level instructions (high priority — these are deliberate directions)
+  const tier2Parts = []
+  if (usedBatchPreserves.length > 0) {
+    tier2Parts.push(`KEEP: ${usedBatchPreserves.map((p) => p.text).join('; ')}`)
+  }
+  if (usedBatchChanges.length > 0) {
+    tier2Parts.push(`FIX: ${usedBatchChanges.map((c) => escalateTag(c)).join('; ')}`)
+  }
+  if (tier2Parts.length > 0) {
+    sections.push(`[PRIORITY INSTRUCTIONS — ${tier2Parts.join(' | ')}]`)
+  }
+
+  // Tier 3: Recent per-image feedback (supporting context — most recent 3 notes each)
+  const tier3Parts = []
+  if (usedNotePreserves.length > 0) {
+    tier3Parts.push(`keep: ${usedNotePreserves.map((p) => tagNote(p)).join('; ')}`)
+  }
+  if (usedNoteChanges.length > 0) {
+    tier3Parts.push(`fix: ${usedNoteChanges.map((c) => { const t = tagNote({ ...c, text: escalateTag(c) }); return t }).join('; ')}`)
+  }
+  if (tier3Parts.length > 0) {
+    sections.push(`[RECENT FEEDBACK — ${tier3Parts.join(' | ')}]`)
+  }
+
+  const preamble = sections.join(' ')
 
   // Build structured snapshot for inspectability
   const allUsed = [...allPreserves, ...allChanges]
