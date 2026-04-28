@@ -325,6 +325,8 @@ export function analyzeProject(projectId) {
     project.category || inferProjectCategory(project, sessions, projectOutputs)
   )
 
+  const personalStandards = buildPersonalStandards(projectOutputs, winnerOutputIds)
+
   return {
     projectId: resolvedId,
     projectName: project.name || resolvedId,
@@ -340,7 +342,37 @@ export function analyzeProject(projectId) {
     colors,
     signalCounts,
     constantKeywords: [...constantKeywords].slice(0, 30),
+    personalStandards,
   }
+}
+
+function buildPersonalStandards(projectOutputs, winnerOutputIds) {
+  const lines = []
+
+  const winnerOutputs = projectOutputs.filter(o => winnerOutputIds.has(o.id))
+  for (const o of winnerOutputs.slice(0, 5)) {
+    if (o.notesKeep?.trim()) lines.push(`APPROVED: ${o.notesKeep.trim()}`)
+    if (o.batchNotesKeep?.trim()) lines.push(`APPROVED: ${o.batchNotesKeep.trim()}`)
+  }
+
+  const highRated = projectOutputs
+    .filter(o => normalizeFeedback(o.feedback) >= 4)
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, 5)
+  for (const o of highRated) {
+    if (o.notesKeep?.trim()) lines.push(`LIKED: ${o.notesKeep.trim()}`)
+  }
+
+  const corrected = projectOutputs
+    .filter(o => o.annotationCorrection?.corrected === false)
+    .slice(0, 5)
+  for (const o of corrected) {
+    if (o.operatorAnnotation?.note) {
+      lines.push(`NOTE: Evaluation was wrong about: "${o.operatorAnnotation.note}"`)
+    }
+  }
+
+  return [...new Set(lines)].join('\n')
 }
 
 /**
