@@ -56,42 +56,37 @@ export function buildIterationContext(winners, outputsById) {
     }
   }
 
-  // --- LEGACY (V1/V2 only): winner-based bucket/notes feedback ---
-  // V3 does not use winners for feedback. This path is kept for backward compatibility
-  // and can be removed when V1/V2 are fully deleted.
+  // --- Winner carry-forward: extract the winning prompt and locked elements ---
+  // Uses finalPromptSent (the exact prompt that produced the winner) as the primary signal.
+  // Capped at 3 most recent winners to avoid prompt bloat.
   if (winners && winners.length > 0) {
-    for (const w of winners) {
+    const recentWinners = [...winners]
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .slice(0, 3)
+
+    for (const w of recentWinners) {
       const output = outputsById?.get(w.outputId)
-      const feedback = getEffectiveFeedback(output, w)
 
-      const winnerRating = normalizeFeedback(feedback)
-      if (winnerRating !== null && winnerRating >= 4) {
-        const buckets = output?.bucketSnapshot
-        if (buckets) {
-          for (const [key, value] of Object.entries(buckets)) {
-            if (value && value.trim()) {
-              preserve.push({ source: 'bucket', bucket: key, text: value.trim(), winnerId: w.id })
-            }
-          }
-          if (bucketSnapshots.length < 4) {
-            bucketSnapshots.push({ winnerId: w.id, buckets })
-          }
-        }
+      // The winning prompt is the most valuable signal — it's the recipe that worked
+      const winnerPrompt = w.finalPromptSent || output?.finalPromptSent
+      if (winnerPrompt && winnerPrompt.trim().length > 10) {
+        preserve.push({
+          source: 'winner-prompt',
+          text: winnerPrompt.trim().slice(0, 300),
+          winnerId: w.id,
+          createdAt: w.createdAt,
+        })
+      }
 
-        const locked = output?.activeLockedElementsSnapshot
-        if (locked && Array.isArray(locked)) {
-          for (const el of locked) lockedElementsSet.add(el)
-        }
+      // Locked elements from the winning generation (works in V3)
+      const locked = output?.activeLockedElementsSnapshot
+      if (locked && Array.isArray(locked)) {
+        for (const el of locked) lockedElementsSet.add(el)
+      }
 
-        if (w.notes && w.notes.trim().length > 5) {
-          preserve.push({ source: 'notes', text: w.notes.trim(), winnerId: w.id })
-        }
-      } else if (winnerRating !== null && winnerRating <= 2) {
-        if (w.notes && w.notes.trim().length > 5) {
-          change.push({ source: 'notes', text: w.notes.trim(), winnerId: w.id })
-        } else {
-          change.push({ source: 'rejection', text: 'Output rejected without specific notes', winnerId: w.id })
-        }
+      // Winner notes — populated via verbal feedback (Fix #1) or manual entry
+      if (w.notes && w.notes.trim().length > 5) {
+        preserve.push({ source: 'notes', text: w.notes.trim(), winnerId: w.id })
       }
     }
   }
@@ -129,6 +124,7 @@ export function formatIterationContextForPlan(ctx) {
     const batchEntries = ctx.preserve.filter((p) => p.source === 'batch-notes')
     const bucketEntries = ctx.preserve.filter((p) => p.source === 'bucket')
     const noteEntries = ctx.preserve.filter((p) => p.source === 'notes')
+    const winnerEntries = ctx.preserve.filter((p) => p.source === 'winner-prompt')
 
     if (batchEntries.length > 0) {
       parts.push('  Batch-level direction (high priority):')
@@ -149,6 +145,9 @@ export function formatIterationContextForPlan(ctx) {
       for (const e of noteEntries) {
         parts.push(`  User note: "${e.text.slice(0, 200)}"`)
       }
+    }
+    if (winnerEntries.length > 0) {
+      parts.push(`  Winner prompt (replicate): "${winnerEntries[0].text.slice(0, 300)}"`)
     }
   }
 
@@ -198,6 +197,7 @@ export function formatIterationContextForGeneration(ctx) {
   const batchPreserves = ctx.preserve.filter((p) => p.source === 'batch-notes')
   const notePreserves = ctx.preserve.filter((p) => p.source === 'notes')
   const bucketPreserves = ctx.preserve.filter((p) => p.source === 'bucket')
+  const winnerPromptPreserves = ctx.preserve.filter((p) => p.source === 'winner-prompt')
 
   // Split changes by source — batch notes get priority
   const batchChanges = ctx.change.filter((c) => c.source === 'batch-notes')
@@ -236,7 +236,11 @@ export function formatIterationContextForGeneration(ctx) {
     usedBucketPreserves.push({ source: 'buckets', text: uniqueBuckets.slice(0, 3).join(', ') })
   }
 
-  const allPreserves = [...usedBatchPreserves, ...usedNotePreserves, ...usedBucketPreserves]
+  // Winner prompts: most recent winner only, truncated — used as a visual reference anchor
+  const usedWinnerPrompts = winnerPromptPreserves.slice(0, 1)
+    .map((p) => ({ ...p, text: p.text.slice(0, 200) }))
+
+  const allPreserves = [...usedBatchPreserves, ...usedNotePreserves, ...usedBucketPreserves, ...usedWinnerPrompts]
   const allChanges = [...usedBatchChanges, ...usedNoteChanges]
 
   if (allPreserves.length === 0 && allChanges.length === 0) return null
@@ -267,6 +271,9 @@ export function formatIterationContextForGeneration(ctx) {
   }
   if (usedBucketPreserves.length > 0) {
     parts.push(`keep buckets: ${usedBucketPreserves.map((p) => p.text).join('; ')}`)
+  }
+  if (usedWinnerPrompts.length > 0) {
+    parts.push(`WINNER REFERENCE (replicate this): ${usedWinnerPrompts[0].text}`)
   }
   if (usedBatchChanges.length > 0) {
     parts.push(`CRITICAL FIX (batch): ${usedBatchChanges.map((c) => { const t = tagNote({ ...c, text: escalateTag(c) }); return t }).join('; ')}`)
@@ -366,7 +373,11 @@ export function summarizeIterationContext(ctx) {
   const preserveBatchNotes = ctx.preserve.filter((p) => p.source === 'batch-notes')
   const preserveBuckets = ctx.preserve.filter((p) => p.source === 'bucket')
   const preserveNotes = ctx.preserve.filter((p) => p.source === 'notes')
+  const preserveWinners = ctx.preserve.filter((p) => p.source === 'winner-prompt')
 
+  if (preserveWinners.length > 0) {
+    parts.push(`${preserveWinners.length} winner prompt${preserveWinners.length > 1 ? 's' : ''}`)
+  }
   if (preserveBatchNotes.length > 0) {
     parts.push(`${preserveBatchNotes.length} batch note${preserveBatchNotes.length > 1 ? 's' : ''}`)
   }
