@@ -419,6 +419,59 @@ async function handleOperatorStatus(req, res) {
   return sendJSON(res, 200, { running: false })
 }
 
+// --- Operator feedback handler ---
+// Saves verbal feedback from Claude Code to the most recently generated batch.
+// Reads data/last-batch.json (written by run.js) to identify which outputs to update.
+
+async function handleOperatorFeedback(req, res) {
+  if (req.method !== 'POST') return sendError(res, 405, 'POST only')
+
+  let body
+  try {
+    body = await readBody(req)
+  } catch {
+    return sendError(res, 400, 'Invalid JSON body')
+  }
+
+  const { notesKeep, notesFix } = body
+  if (!notesKeep && !notesFix) {
+    return sendError(res, 400, 'Provide notesKeep, notesFix, or both')
+  }
+
+  const lastBatchPath = join(process.cwd(), 'data', 'last-batch.json')
+  let lastBatch
+  try {
+    lastBatch = JSON.parse(readFileSync(lastBatchPath, 'utf-8'))
+  } catch (err) {
+    if (err.code === 'ENOENT') return sendError(res, 404, 'No recent batch found — run the operator first')
+    return sendError(res, 500, err.message)
+  }
+
+  const { outputIds = [], sessionId, projectId, generatedAt } = lastBatch
+  if (outputIds.length === 0) return sendError(res, 404, 'Last batch had no outputs')
+
+  const updated = []
+  for (const outputId of outputIds) {
+    const output = storage.get('outputs', outputId)
+    if (!output) continue
+    storage.put('outputs', {
+      ...output,
+      ...(notesKeep !== undefined ? { batchNotesKeep: notesKeep } : {}),
+      ...(notesFix !== undefined ? { batchNotesFix: notesFix } : {}),
+    })
+    updated.push(outputId)
+  }
+
+  return sendJSON(res, 200, {
+    saved: true,
+    outputIds: updated,
+    count: updated.length,
+    sessionId,
+    projectId,
+    batchGeneratedAt: generatedAt,
+  })
+}
+
 // --- Session end marker handler ---
 // Operator reads this to trigger auto-distillation
 
@@ -727,6 +780,9 @@ export function handleStoreAPI(req, res, next) {
   }
   if (cleanUrl === '/api/operator/status') {
     return handleOperatorStatus(req, res)
+  }
+  if (cleanUrl === '/api/operator/feedback') {
+    return handleOperatorFeedback(req, res)
   }
   // Handle /api/handoff/baseline/:projectId
   const baselineMatch = cleanUrl.match(/^\/api\/handoff\/baseline\/(.+)$/)

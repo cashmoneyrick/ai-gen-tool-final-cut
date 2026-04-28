@@ -700,6 +700,16 @@ try {
   // Also touch project updatedAt
   storage.put('projects', { ...project, updatedAt: Date.now() })
 
+  // --- Write last-batch.json so verbal feedback can be saved to these outputs ---
+  const lastBatchPath = fileURLToPath(new URL('../data/last-batch.json', import.meta.url))
+  writeFileSync(lastBatchPath, JSON.stringify({
+    outputIds: newOutputIds,
+    sessionId: session.id,
+    projectId,
+    batchSize: allImages.length,
+    generatedAt: Date.now(),
+  }, null, 2))
+
   // --- Summary ---
 
   console.log('')
