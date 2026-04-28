@@ -105,7 +105,9 @@ if (!project) {
   process.exit(1)
 }
 
+// Sort sessions newest-first so sessions[0] is always the most recently active
 const sessions = storage.getAllByIndex('sessions', 'projectId', projectId)
+  .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
 const session = sessions[0]
 if (!session) {
   console.error(`[operator] No session found for project: ${projectId}`)
@@ -114,13 +116,15 @@ if (!session) {
 
 writeProgress('context', `Loading project "${project.name}"`)
 console.log(`[operator] Project: "${project.name}" (${projectId})`)
-console.log(`[operator] Session: ${session.id}`)
+console.log(`[operator] Session: ${session.id} (${sessions.length} total session${sessions.length !== 1 ? 's' : ''} for this project)`)
 console.log(`[operator] Goal: ${session.goal || '(none)'}`)
 
 // --- Load session entities ---
+// Outputs and winners span ALL sessions — historical data should be visible across the full project
+// Locked elements and refs stay session-specific (active-session concerns)
 
-const allOutputs = storage.getAllByIndex('outputs', 'sessionId', session.id)
-const allWinners = storage.getAllByIndex('winners', 'sessionId', session.id)
+const allOutputs = sessions.flatMap(s => storage.getAllByIndex('outputs', 'sessionId', s.id))
+const allWinners = sessions.flatMap(s => storage.getAllByIndex('winners', 'sessionId', s.id))
 const allLockedElements = storage.getAllByIndex('lockedElements', 'sessionId', session.id)
 const allRefs = storage.getAllByIndex('refs', 'sessionId', session.id)
 const learningOutputs = allOutputs.filter((output) => !isPromptPreviewOutput(output))

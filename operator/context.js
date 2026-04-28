@@ -43,13 +43,16 @@ export function buildOperatorContext(projectId) {
   const project = storage.get('projects', resolvedProjectId)
   if (!project) return null
 
+  // Sort sessions newest-first so sessions[0] is always the most recently active
   const sessions = storage.getAllByIndex('sessions', 'projectId', resolvedProjectId)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
   const session = sessions[0]
   if (!session) return null
 
-  // Load session entities
-  const allOutputs = storage.getAllByIndex('outputs', 'sessionId', session.id)
-  const allWinners = storage.getAllByIndex('winners', 'sessionId', session.id)
+  // Load outputs and winners from ALL sessions — historical data should span the full project
+  // Locked elements and refs stay session-specific (active-session concerns)
+  const allOutputs = sessions.flatMap(s => storage.getAllByIndex('outputs', 'sessionId', s.id))
+  const allWinners = sessions.flatMap(s => storage.getAllByIndex('winners', 'sessionId', s.id))
   const allLockedElements = storage.getAllByIndex('lockedElements', 'sessionId', session.id)
   const allRefs = storage.getAllByIndex('refs', 'sessionId', session.id)
   const learningOutputs = allOutputs.filter((output) => !isPromptPreviewOutput(output))
@@ -58,13 +61,10 @@ export function buildOperatorContext(projectId) {
   const projectCategory = project.category || brief?.category || 'general'
   const categoryState = globalState?.categoryProfiles?.[projectCategory] || null
 
-  // Order by session's ID arrays (same as UI)
-  const outputMap = new Map(learningOutputs.map((o) => [o.id, o]))
-  const winnerMap = new Map(allWinners.map((w) => [w.id, w]))
+  // Order outputs and winners newest-first across all sessions
   const lockedMap = new Map(allLockedElements.map((l) => [l.id, l]))
-
-  const orderedOutputs = (session.outputIds || []).map((id) => outputMap.get(id)).filter(Boolean)
-  const orderedWinners = (session.winnerIds || []).map((id) => winnerMap.get(id)).filter(Boolean)
+  const orderedOutputs = learningOutputs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  const orderedWinners = allWinners.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
   const orderedLocked = (session.lockedElementIds || []).map((id) => lockedMap.get(id)).filter(Boolean)
 
   // Build carry-forward
