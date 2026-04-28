@@ -5,7 +5,15 @@
  * All prices are per 1M tokens (standard tier, not batch).
  */
 
+import { DEFAULT_IMAGE_MODEL } from '../modelConfig'
+
 const PRICING = {
+  'gemini-2.5-flash-image': {
+    inputPerM: 0.50,
+    textOutputPerM: 3.00,
+    imageOutputPerM: 60.00,
+    imageTokens: { '512': 747, '1K': 1120, '2K': 1680, '4K': 2520 },
+  },
   'gemini-3.1-flash-image-preview': {
     inputPerM: 0.50,       // $0.50 per 1M input tokens
     textOutputPerM: 3.00,  // $3.00 per 1M text output tokens
@@ -22,7 +30,7 @@ const PRICING = {
 }
 
 // Fallback for unknown models — use Flash pricing as approximation
-const DEFAULT_PRICING = PRICING['gemini-3.1-flash-image-preview']
+const DEFAULT_PRICING = PRICING[DEFAULT_IMAGE_MODEL]
 
 /**
  * Estimate cost for a single output based on its token usage and model.

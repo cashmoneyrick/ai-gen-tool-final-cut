@@ -1,3 +1,4 @@
+/* global process */
 /**
  * Live Sync — file watcher + SSE endpoint.
  *
@@ -21,9 +22,9 @@ const debounceTimers = new Map()
 const DEBOUNCE_MS = 300
 
 // Suppress live-sync for stores recently written by the browser API.
-// This prevents the browser from reloading its own writes.
+// Keep the window short so operator writes to the same store are not lost.
 const suppressedStores = new Map()
-const SUPPRESS_MS = 1500
+const SUPPRESS_MS = 450
 
 export function suppressLiveSyncFor(store) {
   suppressedStores.set(store, Date.now())

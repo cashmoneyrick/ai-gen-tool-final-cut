@@ -13,6 +13,46 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 const DATA_DIR = join(process.cwd(), 'data')
+const IMAGES_DIR = join(DATA_DIR, 'images')
+
+// --- Image file utilities ---
+
+function ensureImagesDir() {
+  if (!existsSync(IMAGES_DIR)) mkdirSync(IMAGES_DIR, { recursive: true })
+}
+
+export function writeImageFile(outputId, mimeType, base64String) {
+  ensureImagesDir()
+  const ext = mimeType === 'image/png' ? 'png' : 'jpg'
+  const filename = `${outputId}.${ext}`
+  const filePath = join(IMAGES_DIR, filename)
+  const tmp = join(IMAGES_DIR, `${outputId}.tmp.${randomUUID()}.${ext}`)
+  writeFileSync(tmp, Buffer.from(base64String, 'base64'))
+  renameSync(tmp, filePath)
+  return `images/${filename}`
+}
+
+export function readImageFile(outputId) {
+  for (const ext of ['jpg', 'png']) {
+    const filePath = join(IMAGES_DIR, `${outputId}.${ext}`)
+    if (existsSync(filePath)) {
+      return {
+        buffer: readFileSync(filePath),
+        mimeType: ext === 'png' ? 'image/png' : 'image/jpeg',
+        path: filePath,
+      }
+    }
+  }
+  return null
+}
+
+export function imageFileExists(outputId) {
+  for (const ext of ['jpg', 'png']) {
+    const filePath = join(IMAGES_DIR, `${outputId}.${ext}`)
+    if (existsSync(filePath)) return filePath
+  }
+  return null
+}
 
 // Mirror the index config from src/storage/db.js STORES
 const STORE_INDEXES = {
@@ -31,6 +71,8 @@ const STORE_INDEXES = {
   planRuns: ['projectId', 'sessionId'],
   projectLessons: ['projectId'],
   knowledgeOverrides: ['projectId'],
+  folders: ['projectId'],
+  folderItems: ['folderId', 'outputId'],
 }
 
 const VALID_STORES = new Set(Object.keys(STORE_INDEXES))
@@ -95,6 +137,15 @@ export function getValidIndexes(storeName) {
 }
 
 export function put(storeName, record) {
+  // Extract image data to file for outputs (keeps outputs.json small)
+  if (storeName === 'outputs' && record.dataUrl && !record.imagePath) {
+    const match = record.dataUrl.match(/^data:(image\/\w+);base64,(.+)$/)
+    if (match) {
+      record.imagePath = writeImageFile(record.id, match[1], match[2])
+      delete record.dataUrl
+    }
+  }
+
   const records = readStore(storeName)
   const idx = records.findIndex((r) => r.id === record.id)
 
@@ -158,6 +209,18 @@ export function clearStore(storeName) {
 }
 
 export function putMany(storeName, newRecords) {
+  // Extract image data to files for outputs
+  if (storeName === 'outputs') {
+    for (const rec of newRecords) {
+      if (rec.dataUrl && !rec.imagePath) {
+        const match = rec.dataUrl.match(/^data:(image\/\w+);base64,(.+)$/)
+        if (match) {
+          rec.imagePath = writeImageFile(rec.id, match[1], match[2])
+          delete rec.dataUrl
+        }
+      }
+    }
+  }
   const records = readStore(storeName)
   const byId = new Map(records.map((r) => [r.id, r]))
   for (const rec of newRecords) {

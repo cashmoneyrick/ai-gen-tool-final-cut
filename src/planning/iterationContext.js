@@ -1,4 +1,8 @@
-import { getEffectiveFeedback } from '../reviewFeedback.js'
+import { getEffectiveFeedback, normalizeFeedback } from '../reviewFeedback.js'
+
+function isPromptPreviewOutput(output) {
+  return output?.outputKind === 'prompt-preview'
+}
 
 /**
  * buildIterationContext — extracts structured carry-forward data from winners + linked outputs.
@@ -17,6 +21,7 @@ export function buildIterationContext(winners, outputsById) {
   const seenBatchNotes = new Set() // deduplicate batch notes (shared across outputs in same batch)
   if (outputsById && outputsById.size > 0) {
     for (const output of outputsById.values()) {
+      if (isPromptPreviewOutput(output)) continue
       // Per-output notes
       if (output.notesKeep && output.notesKeep.trim().length > 5) {
         preserve.push({ source: 'notes', text: output.notesKeep.trim(), outputId: output.id, createdAt: output.createdAt })
@@ -24,6 +29,15 @@ export function buildIterationContext(winners, outputsById) {
       if (output.notesFix && output.notesFix.trim().length > 5) {
         change.push({ source: 'notes', text: output.notesFix.trim(), outputId: output.id, createdAt: output.createdAt })
       }
+      // Rating-based signals (when no written notes exist)
+      const rating = normalizeFeedback(output.feedback)
+      if (rating !== null && rating >= 4 && (!output.notesKeep || output.notesKeep.trim().length <= 5)) {
+        preserve.push({ source: 'rating', text: `Rated ${rating}/5 - overall direction is good`, outputId: output.id, createdAt: output.createdAt })
+      }
+      if (rating !== null && rating <= 2 && (!output.notesFix || output.notesFix.trim().length <= 5)) {
+        change.push({ source: 'rating', text: `Rated ${rating}/5 - significant changes needed`, outputId: output.id, createdAt: output.createdAt })
+      }
+
       // Batch-level notes (deduplicate — same text is on every output in the batch)
       if (output.batchNotesKeep && output.batchNotesKeep.trim().length > 5) {
         const key = `keep:${output.batchNotesKeep.trim()}`
@@ -50,7 +64,8 @@ export function buildIterationContext(winners, outputsById) {
       const output = outputsById?.get(w.outputId)
       const feedback = getEffectiveFeedback(output, w)
 
-      if (feedback === 'up') {
+      const winnerRating = normalizeFeedback(feedback)
+      if (winnerRating !== null && winnerRating >= 4) {
         const buckets = output?.bucketSnapshot
         if (buckets) {
           for (const [key, value] of Object.entries(buckets)) {
@@ -71,7 +86,7 @@ export function buildIterationContext(winners, outputsById) {
         if (w.notes && w.notes.trim().length > 5) {
           preserve.push({ source: 'notes', text: w.notes.trim(), winnerId: w.id })
         }
-      } else if (feedback === 'down') {
+      } else if (winnerRating !== null && winnerRating <= 2) {
         if (w.notes && w.notes.trim().length > 5) {
           change.push({ source: 'notes', text: w.notes.trim(), winnerId: w.id })
         } else {
@@ -308,7 +323,9 @@ export function buildCrossSessionContext(projectId, currentSessionId, storageMod
 
   // Load winners and outputs from previous session
   const prevWinners = storageModule.getAllByIndex('winners', 'sessionId', previous.id)
-  const prevOutputs = storageModule.getAllByIndex('outputs', 'sessionId', previous.id)
+  const prevOutputs = storageModule
+    .getAllByIndex('outputs', 'sessionId', previous.id)
+    .filter((output) => !isPromptPreviewOutput(output))
   const prevOutputsById = new Map(prevOutputs.map((o) => [o.id, o]))
 
   const lessons = []

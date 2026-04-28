@@ -49,7 +49,9 @@ export default function ProjectPickerModal({
   const [filter, setFilter] = useState('active')
   const [editingId, setEditingId] = useState(null)
   const [editName, setEditName] = useState('')
-  const [projectStats, setProjectStats] = useState({})
+  const [projectStats, setProjectStats] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('v3-project-stats') || '{}') } catch { return {} }
+  })
   const editRef = useRef(null)
 
   useEffect(() => {
@@ -66,12 +68,17 @@ export default function ProjectPickerModal({
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  // Fetch all project stats in a single lightweight call (no base64 transferred)
+  // Fetch all project stats — seed instantly from localStorage, refresh in background
   useEffect(() => {
     let cancelled = false
     fetch('/api/project-stats')
       .then((r) => r.json())
-      .then((stats) => { if (!cancelled) setProjectStats(stats) })
+      .then((stats) => {
+        if (!cancelled) {
+          setProjectStats(stats)
+          try { localStorage.setItem('v3-project-stats', JSON.stringify(stats)) } catch {}
+        }
+      })
       .catch(() => {})
     return () => { cancelled = true }
   }, [projects])
@@ -112,20 +119,18 @@ export default function ProjectPickerModal({
     <div className="v3-modal-backdrop" onClick={onClose}>
       <div className="v3-modal" onClick={(e) => e.stopPropagation()}>
         <div className="v3-modal-header">
-          <span className="v3-modal-title">Projects</span>
+          <div className="v3-segment-bar">
+            {filters.map((f) => (
+              <button
+                key={f}
+                className={`v3-segment-btn ${filter === f ? 'v3-segment-active' : ''}`}
+                onClick={() => setFilter(f)}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
           <button className="v3-modal-close" onClick={onClose}>&times;</button>
-        </div>
-
-        <div className="v3-segment-bar">
-          {filters.map((f) => (
-            <button
-              key={f}
-              className={`v3-segment-btn ${filter === f ? 'v3-segment-active' : ''}`}
-              onClick={() => setFilter(f)}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
         </div>
 
         <div className="v3-project-list">
@@ -134,13 +139,14 @@ export default function ProjectPickerModal({
               {filter === 'archived' ? 'No archived projects' : 'No projects yet'}
             </div>
           )}
-          {filtered.map((p) => {
+          {filtered.map((p, i) => {
             const isActive = p.id === activeProjectId
             const stats = projectStats[p.id]
             return (
               <div
                 key={p.id}
                 className={`v3-project-row ${isActive ? 'v3-project-row-active' : ''}`}
+                style={{ '--row-i': i }}
               >
                 {isActive && <div className="v3-project-active-bar" />}
                 {editingId === p.id ? (
@@ -169,12 +175,13 @@ export default function ProjectPickerModal({
                           <>
                             <span className="v3-project-meta-dot">·</span>
                             <span className="v3-project-images">{stats.outputCount} img</span>
-                            <span className="v3-project-meta-dot">·</span>
-                            <span className="v3-project-cost">{formatCost(stats.totalCost)}</span>
                           </>
                         )}
                       </span>
                     </div>
+                    {stats && stats.totalCost > 0 && (
+                      <span className="v3-project-cost-badge">{formatCost(stats.totalCost)}</span>
+                    )}
                   </button>
                 )}
                 <div className="v3-project-actions">

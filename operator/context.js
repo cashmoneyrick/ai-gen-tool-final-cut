@@ -14,7 +14,9 @@
 
 import * as storage from '../server/storage.js'
 import { buildIterationContext, summarizeIterationContext } from '../src/planning/iterationContext.js'
-import { getEffectiveFeedback } from '../src/reviewFeedback.js'
+import { getEffectiveFeedback, normalizeFeedback } from '../src/reviewFeedback.js'
+import { readBrief, readGlobalState } from './analyze.js'
+import { DEFAULT_IMAGE_MODEL } from '../src/modelConfig.js'
 
 const MAX_RECENT_OUTPUTS = 12
 const MAX_WINNERS = 10
@@ -24,6 +26,10 @@ const MAX_PROMPT_PREVIEW = 200
 function truncate(str, max = MAX_PROMPT_PREVIEW) {
   if (!str) return ''
   return str.length > max ? str.slice(0, max) + '...' : str
+}
+
+function isPromptPreviewOutput(output) {
+  return output?.outputKind === 'prompt-preview'
 }
 
 /**
@@ -46,9 +52,14 @@ export function buildOperatorContext(projectId) {
   const allWinners = storage.getAllByIndex('winners', 'sessionId', session.id)
   const allLockedElements = storage.getAllByIndex('lockedElements', 'sessionId', session.id)
   const allRefs = storage.getAllByIndex('refs', 'sessionId', session.id)
+  const learningOutputs = allOutputs.filter((output) => !isPromptPreviewOutput(output))
+  const brief = readBrief(resolvedProjectId)
+  const globalState = readGlobalState()
+  const projectCategory = project.category || brief?.category || 'general'
+  const categoryState = globalState?.categoryProfiles?.[projectCategory] || null
 
   // Order by session's ID arrays (same as UI)
-  const outputMap = new Map(allOutputs.map((o) => [o.id, o]))
+  const outputMap = new Map(learningOutputs.map((o) => [o.id, o]))
   const winnerMap = new Map(allWinners.map((w) => [w.id, w]))
   const lockedMap = new Map(allLockedElements.map((l) => [l.id, l]))
 
@@ -61,16 +72,18 @@ export function buildOperatorContext(projectId) {
   const iterationContext = buildIterationContext(orderedWinners, outputsById)
   const carryForwardSummary = summarizeIterationContext(iterationContext)
 
-  // Feedback stats
-  const feedbackCounts = { up: 0, down: 0, none: 0 }
+  // Feedback stats — numeric 1-5 buckets (backward-compatible with legacy up/down)
+  const feedbackCounts = { high: 0, mid: 0, low: 0, none: 0 }
   for (const o of orderedOutputs) {
-    if (o.feedback === 'up') feedbackCounts.up++
-    else if (o.feedback === 'down') feedbackCounts.down++
-    else feedbackCounts.none++
+    const rating = normalizeFeedback(o.feedback)
+    if (rating === null) feedbackCounts.none++
+    else if (rating >= 4) feedbackCounts.high++
+    else if (rating === 3) feedbackCounts.mid++
+    else feedbackCounts.low++
   }
-  const totalWithFeedback = feedbackCounts.up + feedbackCounts.down
+  const totalWithFeedback = feedbackCounts.high + feedbackCounts.mid + feedbackCounts.low
   const positiveRate = totalWithFeedback > 0
-    ? Math.round((feedbackCounts.up / totalWithFeedback) * 100)
+    ? Math.round((feedbackCounts.high / totalWithFeedback) * 100)
     : null
 
   // Aggregate ALL feedback notes across all outputs (not just recent N)
@@ -98,7 +111,8 @@ export function buildOperatorContext(projectId) {
       seenBatchFix.add(o.batchNotesFix.trim())
       batchFix.push({ text: o.batchNotesFix.trim(), batchCreatedAt: o.createdAt })
     }
-    if (o.feedback === 'down' && (!o.notesFix || o.notesFix.trim().length <= 5)) {
+    const oRating = normalizeFeedback(o.feedback)
+    if (oRating !== null && oRating <= 2 && (!o.notesFix || o.notesFix.trim().length <= 5)) {
       rejectionsWithoutNotes++
     }
   }
@@ -126,11 +140,13 @@ export function buildOperatorContext(projectId) {
     project: {
       id: resolvedProjectId,
       name: project.name,
+      category: projectCategory,
+      savedColors: project.savedColors || [],
     },
     session: {
       id: session.id,
       goal: session.goal || '',
-      model: session.model || 'gemini-3.1-flash-image-preview',
+      model: session.model || DEFAULT_IMAGE_MODEL,
       planStatus: session.planStatus || 'idle',
     },
     buckets: session.buckets || { subject: '', style: '', lighting: '', composition: '', technical: '' },
@@ -184,6 +200,10 @@ export function buildOperatorContext(projectId) {
       positiveRate,
       rejectionsWithoutNotes,
     },
+    // Analysis engine data (if available)
+    brief,
+    globalState,
+    categoryState,
   }
 }
 

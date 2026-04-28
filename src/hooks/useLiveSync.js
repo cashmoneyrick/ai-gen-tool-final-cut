@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * Hook that connects to the SSE live-sync endpoint and calls
@@ -8,7 +8,16 @@ import { useEffect, useRef } from 'react'
  */
 export default function useLiveSync(onSync, enabled = true) {
   const onSyncRef = useRef(onSync)
-  onSyncRef.current = onSync
+  const [state, setState] = useState({
+    connection: enabled ? 'connecting' : 'idle',
+    lastStore: null,
+    lastEventAt: null,
+    lastSyncAt: null,
+  })
+
+  useEffect(() => {
+    onSyncRef.current = onSync
+  }, [onSync])
 
   useEffect(() => {
     if (!enabled) return
@@ -17,9 +26,21 @@ export default function useLiveSync(onSync, enabled = true) {
     let debounceTimer = null
     let reconnectTimer = null
     const DEBOUNCE_MS = 500
+    let pendingEvent = null
 
     function connect() {
+      setState((prev) => ({
+        ...prev,
+        connection: prev.lastSyncAt ? 'reconnecting' : 'connecting',
+      }))
       es = new EventSource('/api/live-sync')
+
+      es.onopen = () => {
+        setState((prev) => ({
+          ...prev,
+          connection: 'live',
+        }))
+      }
 
       es.onmessage = (event) => {
         try {
@@ -27,10 +48,31 @@ export default function useLiveSync(onSync, enabled = true) {
           // Skip the initial connection message
           if (data.connected) return
 
+          pendingEvent = data
+          setState((prev) => ({
+            ...prev,
+            connection: 'live',
+            lastStore: data.store || prev.lastStore,
+            lastEventAt: data.ts || Date.now(),
+          }))
+
           // Debounce — coalesce rapid file changes into one sync
           if (debounceTimer) clearTimeout(debounceTimer)
-          debounceTimer = setTimeout(() => {
-            onSyncRef.current?.()
+          debounceTimer = setTimeout(async () => {
+            try {
+              await onSyncRef.current?.(pendingEvent)
+              setState((prev) => ({
+                ...prev,
+                connection: 'live',
+                lastStore: pendingEvent?.store || prev.lastStore,
+                lastSyncAt: Date.now(),
+              }))
+            } catch {
+              setState((prev) => ({
+                ...prev,
+                connection: 'error',
+              }))
+            }
           }, DEBOUNCE_MS)
         } catch {
           // Ignore parse errors
@@ -39,6 +81,10 @@ export default function useLiveSync(onSync, enabled = true) {
 
       es.onerror = () => {
         es.close()
+        setState((prev) => ({
+          ...prev,
+          connection: 'reconnecting',
+        }))
         // Reconnect after 3s
         reconnectTimer = setTimeout(connect, 3000)
       }
@@ -52,4 +98,6 @@ export default function useLiveSync(onSync, enabled = true) {
       es?.close()
     }
   }, [enabled])
+
+  return state
 }

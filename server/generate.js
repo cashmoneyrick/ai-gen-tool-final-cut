@@ -1,19 +1,16 @@
 /**
- * Server-side Gemini generation handler (HTTP layer).
+ * Server-side Vertex AI generation handler (HTTP layer).
  * Core generation logic lives in server/gemini.js.
  *
- * Default model: Nano Banana 2 (gemini-3.1-flash-image-preview)
+ * Default model: Pro image generation on Vertex (gemini-3-pro-image-preview)
  * Override via GEMINI_MODEL env var for Pro path later.
  */
 
-import { generateFromGemini } from './gemini.js'
+import { generateFromVertexAI } from './gemini.js'
+import { assertVertexAIConfigured } from './vertex-auth.js'
+import { AVAILABLE_IMAGE_MODELS, DEFAULT_IMAGE_MODEL, resolveImageModel } from '../src/modelConfig.js'
 
-const DEFAULT_MODEL = 'gemini-3.1-flash-image-preview'
-
-const AVAILABLE_MODELS = [
-  { id: 'gemini-3.1-flash-image-preview', label: 'Nano Banana 2' },
-  { id: 'gemini-3-pro-image-preview', label: 'Nano Banana Pro' },
-]
+const DEFAULT_MODEL = DEFAULT_IMAGE_MODEL
 
 /**
  * Send a structured error response.
@@ -30,9 +27,9 @@ function sendError(res, { status, code, message, retryable = false, detail = nul
  * Returns available models and default model for the client.
  */
 export function handleConfig(req, res) {
-  const defaultModel = process.env.GEMINI_MODEL || DEFAULT_MODEL
+  const defaultModel = resolveImageModel(process.env.GEMINI_MODEL || DEFAULT_MODEL)
   res.setHeader('Content-Type', 'application/json')
-  res.end(JSON.stringify({ defaultModel, availableModels: AVAILABLE_MODELS }))
+  res.end(JSON.stringify({ defaultModel, availableModels: AVAILABLE_IMAGE_MODELS }))
 }
 
 /**
@@ -42,11 +39,15 @@ export function handleConfig(req, res) {
  * Returns JSON: { images: [{ base64: string, mimeType: string }], text: string | null }
  */
 export async function handleGenerate(req, res) {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
+  try {
+    assertVertexAIConfigured()
+  } catch (err) {
     return sendError(res, {
-      status: 500, code: 'NO_API_KEY',
-      message: 'GEMINI_API_KEY not set in server environment',
+      status: err.status || 500,
+      code: err.code || 'VERTEX_CONFIG_ERROR',
+      message: err.message,
+      retryable: err.retryable ?? false,
+      detail: err.detail || null,
     })
   }
 
@@ -72,7 +73,7 @@ export async function handleGenerate(req, res) {
   }
 
   // Resolve model: client request > env var > default
-  const model = requestModel || process.env.GEMINI_MODEL || DEFAULT_MODEL
+  const model = resolveImageModel(requestModel || process.env.GEMINI_MODEL || DEFAULT_MODEL)
 
   // Build generation options from request body
   const options = {}
@@ -86,7 +87,7 @@ export async function handleGenerate(req, res) {
   console.log(`[generate] received at ${Date.now()} model=${model} refs=${refs.length}${optionsSummary}`)
 
   try {
-    const result = await generateFromGemini(prompt, refs, model, apiKey, options)
+    const result = await generateFromVertexAI(prompt, refs, model, options)
 
     console.log(`[generate] done model=${model} refs=${refs.length} durationMs=${result.metadata.durationMs} images=${result.images.length} finish=${result.metadata.finishReason || 'unknown'}`)
 
@@ -96,7 +97,7 @@ export async function handleGenerate(req, res) {
     if (err.name === 'AbortError') {
       return sendError(res, {
         status: 504, code: 'TIMEOUT',
-        message: 'Gemini API took too long (>90s) — try again',
+        message: 'Vertex AI took too long (>90s) — try again',
         retryable: true,
       })
     }

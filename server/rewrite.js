@@ -1,19 +1,17 @@
 /**
  * Batch feedback cleanup endpoint.
  * Takes messy user feedback notes and sharpens them into concise,
- * actionable image generation direction using Gemini Pro.
+ * actionable image generation direction using Vertex AI.
  *
  * Accepts multiple notes in one call with project context.
  */
 
+import { assertVertexAIConfigured, postVertexGenerateContent } from './vertex-auth.js'
+
 const REWRITE_MODEL = 'gemini-2.5-flash'
 const FALLBACK_MODEL = 'gemini-2.5-flash'
 
-function getEndpoint(model) {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
-}
-
-const SYSTEM_INSTRUCTION = `You are a feedback sharpener for an AI image generation tool. Users give you their raw, spoken feedback about generated images. Your job is to convert each note into concise, specific, actionable direction that an image generation AI (Gemini) can follow precisely.
+const SYSTEM_INSTRUCTION = `You are a feedback sharpener for an AI image generation tool. Users give you their raw, spoken feedback about generated images. Your job is to convert each note into concise, specific, actionable direction that an image generation AI can follow precisely.
 
 RULES:
 1. You receive one or more feedback notes, each labeled as KEEP (preserve this) or FIX (change this), and as IMAGE-level (about one specific output) or BATCH-level (about the whole set).
@@ -64,10 +62,11 @@ export async function handleRewrite(req, res) {
     return
   }
 
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
+  try {
+    assertVertexAIConfigured()
+  } catch (err) {
     res.statusCode = 500
-    res.end(JSON.stringify({ error: 'No API key configured' }))
+    res.end(JSON.stringify({ error: err.message }))
     return
   }
 
@@ -82,7 +81,7 @@ export async function handleRewrite(req, res) {
     // Legacy single-note path (backward compat)
     if (text && type && !notes) {
       const batchNotes = [{ text, type, source: 'image' }]
-      const results = await callGemini(batchNotes, {}, apiKey, REWRITE_MODEL)
+      const results = await callVertexModel(batchNotes, {}, REWRITE_MODEL)
       res.statusCode = 200
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({ rewritten: results[0]?.cleaned || text }))
@@ -97,10 +96,10 @@ export async function handleRewrite(req, res) {
 
     let results
     try {
-      results = await callGemini(notes, context || {}, apiKey, REWRITE_MODEL)
+      results = await callVertexModel(notes, context || {}, REWRITE_MODEL)
     } catch (err) {
-      console.warn('[rewrite] Pro failed, falling back to Flash:', err.message)
-      results = await callGemini(notes, context || {}, apiKey, FALLBACK_MODEL)
+      console.warn('[rewrite] Primary rewrite model failed, falling back:', err.message)
+      results = await callVertexModel(notes, context || {}, FALLBACK_MODEL)
     }
 
     res.statusCode = 200
@@ -113,7 +112,7 @@ export async function handleRewrite(req, res) {
   }
 }
 
-async function callGemini(notes, context, apiKey, model) {
+async function callVertexModel(notes, context, model) {
   // Build the user prompt with rich context
   const contextParts = []
   if (context.projectName) contextParts.push(`Project: "${context.projectName}"`)
@@ -141,28 +140,23 @@ async function callGemini(notes, context, apiKey, model) {
 
   const userPrompt = `${contextLine}Notes to clean up:\n${notesList}`
 
-  const endpoint = getEndpoint(model)
-  const response = await fetch(`${endpoint}?key=${apiKey}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-      contents: [
-        ...FEW_SHOT_CONTENTS,
-        { role: 'user', parts: [{ text: userPrompt }] },
-      ],
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 4000,
-        responseMimeType: 'application/json',
-      },
-    }),
-  })
+  const { response } = await postVertexGenerateContent(model, {
+    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+    contents: [
+      ...FEW_SHOT_CONTENTS,
+      { role: 'user', parts: [{ text: userPrompt }] },
+    ],
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: 4000,
+      responseMimeType: 'application/json',
+    },
+  }, { timeoutMs: 90_000 })
 
   if (!response.ok) {
     const errText = await response.text()
-    console.error('[rewrite] Gemini error:', errText)
-    throw new Error('Gemini API error')
+    console.error('[rewrite] Vertex AI error:', errText)
+    throw new Error('Vertex AI error')
   }
 
   const data = await response.json()
@@ -176,7 +170,7 @@ async function callGemini(notes, context, apiKey, model) {
       cleaned: parsed[i]?.cleaned || n.text,
     }))
   } catch {
-    console.error('[rewrite] Failed to parse Gemini JSON response:', rawText)
+    console.error('[rewrite] Failed to parse Vertex AI JSON response:', rawText)
     // Fallback: return originals unchanged
     return notes.map((n) => ({ original: n.text, cleaned: n.text }))
   }

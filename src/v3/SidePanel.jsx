@@ -1,12 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import SaveIndicator from './SaveIndicator'
 import RefsPanel from './RefsPanel'
+import PromptPreview from './PromptPreview'
 import { estimateCost, estimateBatchCost, formatCost } from './costUtils'
+import { getImageUrl } from '../utils/imageUrl.js'
+import { AVAILABLE_IMAGE_MODELS } from '../modelConfig'
 
-const AVAILABLE_MODELS = [
-  { id: 'gemini-3.1-flash-image-preview', label: 'Flash' },
-  { id: 'gemini-3-pro-image-preview', label: 'Pro' },
-]
+const AVAILABLE_MODELS = AVAILABLE_IMAGE_MODELS
 
 const ASPECT_RATIOS_FLASH = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9', '1:4', '4:1', '1:8', '8:1']
 const ASPECT_RATIOS_PRO = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']
@@ -62,7 +62,6 @@ function SectionSep({ label, hint, variant }) {
     <div className={`v3-sp-sep ${variant ? `v3-sp-sep--${variant}` : ''}`}>
       <span className="v3-sp-sep-line" />
       <span className="v3-sp-sep-label">{label}</span>
-      {hint && <span className="v3-sp-sep-hint">{hint}</span>}
     </div>
   )
 }
@@ -215,11 +214,12 @@ function BatchSection({ batch, onUpdateBatchNotes }) {
     setDownloadState('downloading')
     for (let i = 0; i < batch.outputs.length; i++) {
       const o = batch.outputs[i]
-      if (!o.dataUrl) continue
+      const oUrl = getImageUrl(o)
+      if (!oUrl) continue
       const ext = o.mimeType === 'image/png' ? 'png' : 'jpg'
       const filename = `Batch-${batch.number}-${i + 1}of${batch.outputs.length}-${o.id.slice(0, 8)}.${ext}`
       const link = document.createElement('a')
-      link.href = o.dataUrl
+      link.href = oUrl
       link.download = filename
       document.body.appendChild(link)
       link.click()
@@ -255,12 +255,6 @@ function BatchSection({ batch, onUpdateBatchNotes }) {
           </button>
         </div>
       </div>
-      {batchCost.total > 0 && (
-        <div className="v3-sp-meta-tags">
-          <span className="v3-sp-meta-tag">{count} image{count !== 1 ? 's' : ''}</span>
-          <span className="v3-sp-meta-tag">{formatCost(batchCost.total)}</span>
-        </div>
-      )}
       <FeedbackBox
         type="keep"
         value={keepDraft}
@@ -287,34 +281,56 @@ function SettingsSection({
   thinkingLevel, onThinkingLevelChange,
   googleSearch, onGoogleSearchChange,
   imageSearch, onImageSearchChange,
+  restrictions,
+  imageCount, onImageCountChange,
 }) {
   const isFlash = model?.includes('flash')
   const sizeOptions = isFlash ? ['512', '1K', '2K', '4K'] : ['1K', '2K', '4K']
   const ratioOptions = isFlash ? ASPECT_RATIOS_FLASH : ASPECT_RATIOS_PRO
 
+  // Check if a setting is restricted
+  const isRestricted = (setting, value) => {
+    if (!restrictions?.length) return false
+    return restrictions.some((r) => r.setting === setting && (r.value === value || r.value === 'true') && (!r.model || r.model === model))
+  }
+
   return (
     <div className="v3-sp-section-body">
       <div className="v3-sp-setting">
         <span className="v3-sp-setting-label">Model</span>
-        <select className="v3-sp-select" value={model} onChange={(e) => onModelChange(e.target.value)}>
-          {AVAILABLE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-        </select>
-      </div>
-
-      <div className="v3-sp-setting">
-        <span className="v3-sp-setting-label">Size</span>
         <div className="v3-sp-segment">
-          {sizeOptions.map((s) => (
-            <button key={s} className={`v3-sp-seg-btn ${imageSize === s ? 'v3-sp-seg-btn--on' : ''}`} onClick={() => onImageSizeChange(s)}>{s}</button>
+          {AVAILABLE_MODELS.map((m) => (
+            <button key={m.id} className={`v3-sp-seg-btn ${model === m.id ? 'v3-sp-seg-btn--on' : ''}`} onClick={() => onModelChange(m.id)}>{m.label}</button>
           ))}
         </div>
       </div>
 
       <div className="v3-sp-setting">
-        <span className="v3-sp-setting-label">Ratio</span>
-        <div className="v3-sp-ratio-grid">
+        <span className="v3-sp-setting-label">Size</span>
+        <div className="v3-sp-segment">
+          {sizeOptions.map((s) => {
+            const restricted = isRestricted('imageSize', s)
+            return (
+              <button
+                key={s}
+                className={`v3-sp-seg-btn ${imageSize === s ? 'v3-sp-seg-btn--on' : ''} ${restricted ? 'v3-sp-seg-btn--restricted' : ''}`}
+                onClick={() => !restricted && onImageSizeChange(s)}
+                disabled={restricted}
+                title={restricted ? `${s} unavailable — failed on last attempt` : s}
+              >{s}</button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="v3-sp-setting v3-sp-setting--ratio">
+        <div className="v3-sp-setting-row">
+          <span className="v3-sp-setting-label">Ratio</span>
+          <span className="v3-sp-setting-val">{aspectRatio}</span>
+        </div>
+        <div className={`v3-sp-ratio-grid ${isFlash ? 'v3-sp-ratio-grid--flash' : 'v3-sp-ratio-grid--pro'}`}>
           {ratioOptions.map((r) => {
-            const shape = ratioToShape(r)
+            const shape = ratioToShape(r, 18)
             return (
               <button
                 key={r}
@@ -323,7 +339,6 @@ function SettingsSection({
                 title={r}
               >
                 <span className="v3-sp-ratio-shape" style={{ width: shape.width, height: shape.height }} />
-                <span className="v3-sp-ratio-label">{r}</span>
               </button>
             )
           })}
@@ -335,7 +350,17 @@ function SettingsSection({
           <span className="v3-sp-setting-label">Thinking</span>
           <div className="v3-sp-segment">
             <button className={`v3-sp-seg-btn ${thinkingLevel === 'minimal' ? 'v3-sp-seg-btn--on' : ''}`} onClick={() => onThinkingLevelChange('minimal')}>Min</button>
-            <button className={`v3-sp-seg-btn ${thinkingLevel === 'High' ? 'v3-sp-seg-btn--on' : ''}`} onClick={() => onThinkingLevelChange('High')}>High</button>
+            {(() => {
+              const restricted = isRestricted('thinkingLevel', 'High')
+              return (
+                <button
+                  className={`v3-sp-seg-btn ${thinkingLevel === 'High' ? 'v3-sp-seg-btn--on' : ''} ${restricted ? 'v3-sp-seg-btn--restricted' : ''}`}
+                  onClick={() => !restricted && onThinkingLevelChange('High')}
+                  disabled={restricted}
+                  title={restricted ? 'High thinking unavailable — failed on last attempt' : 'High'}
+                >High</button>
+              )
+            })()}
           </div>
         </div>
       )}
@@ -343,15 +368,37 @@ function SettingsSection({
       <div className="v3-sp-setting">
         <span className="v3-sp-setting-label">Search</span>
         <div className="v3-sp-toggles">
-          <label className="v3-sp-toggle-item">
-            <input type="checkbox" checked={googleSearch} onChange={(e) => { onGoogleSearchChange(e.target.checked); if (!e.target.checked) onImageSearchChange(false) }} />
-            <span>Web</span>
-          </label>
-          <label className={`v3-sp-toggle-item ${!isFlash || !googleSearch ? 'v3-sp-toggle-disabled' : ''}`}>
-            <input type="checkbox" checked={imageSearch} disabled={!isFlash || !googleSearch} onChange={(e) => onImageSearchChange(e.target.checked)} />
-            <span>Images</span>
-          </label>
+          {(() => {
+            const webRestricted = isRestricted('googleSearch', 'true')
+            return (
+              <label className={`v3-sp-toggle-item ${webRestricted ? 'v3-sp-toggle-disabled' : ''}`} title={webRestricted ? 'Web search unavailable' : ''}>
+                <input type="checkbox" checked={googleSearch} disabled={webRestricted} onChange={(e) => { onGoogleSearchChange(e.target.checked); if (!e.target.checked) onImageSearchChange(false) }} />
+                <span>Web</span>
+              </label>
+            )
+          })()}
+          {(() => {
+            const imgRestricted = !isFlash || !googleSearch || isRestricted('imageSearch', 'true')
+            return (
+              <label className={`v3-sp-toggle-item ${imgRestricted ? 'v3-sp-toggle-disabled' : ''}`} title={isRestricted('imageSearch', 'true') ? 'Image search unavailable' : ''}>
+                <input type="checkbox" checked={imageSearch} disabled={imgRestricted} onChange={(e) => onImageSearchChange(e.target.checked)} />
+                <span>Images</span>
+              </label>
+            )
+          })()}
         </div>
+      <div className="v3-sp-setting">
+        <span className="v3-sp-setting-label">Images</span>
+        <div className="v3-sp-segment">
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <button
+              key={n}
+              className={`v3-sp-seg-btn ${imageCount === n ? 'v3-sp-seg-btn--on' : ''}`}
+              onClick={() => onImageCountChange(n)}
+            >{n}</button>
+          ))}
+        </div>
+      </div>
       </div>
     </div>
   )
@@ -367,7 +414,9 @@ export default function SidePanel({
   // Batch
   batch, onUpdateBatchNotes,
   // Refs
-  refs, onAddRefs, onRemoveRef, onToggleRefSend, onToggleRefAnchor, onUpdateRefNotes,
+  refs, onAddRefs, onRemoveRef, onToggleRefSend, onUpdateRefMode, onReorderRefs, onUpdateRefNotes,
+  // Prompt preview
+  lockedElements, session,
   // Settings
   model, onModelChange,
   imageSize, onImageSizeChange,
@@ -375,9 +424,11 @@ export default function SidePanel({
   thinkingLevel, onThinkingLevelChange,
   googleSearch, onGoogleSearchChange,
   imageSearch, onImageSearchChange,
+  restrictions,
   // Run bar
   imageCount, onImageCountChange,
   runLabel, runDisabled, onRunNextAttempt,
+  claudeLabel, claudeDisabled, onTalkToClaude,
 }) {
   return (
     <div className={`v3-side-panel ${expanded ? 'v3-side-panel--open' : ''}`}>
@@ -425,11 +476,17 @@ export default function SidePanel({
                 onAddRefs={onAddRefs}
                 onRemoveRef={onRemoveRef}
                 onToggleRefSend={onToggleRefSend}
-                onToggleRefAnchor={onToggleRefAnchor}
+                onUpdateRefMode={onUpdateRefMode}
+                onReorderRefs={onReorderRefs}
                 onUpdateRefNotes={onUpdateRefNotes}
-                inSidebar
               />
             </div>
+
+            <PromptPreview
+              lockedElements={lockedElements}
+              refs={refs}
+              assembledPrompt={session?.assembledPrompt}
+            />
 
             <SectionSep label="Generation" variant="settings" />
             <SettingsSection
@@ -439,28 +496,26 @@ export default function SidePanel({
               thinkingLevel={thinkingLevel} onThinkingLevelChange={onThinkingLevelChange}
               googleSearch={googleSearch} onGoogleSearchChange={onGoogleSearchChange}
               imageSearch={imageSearch} onImageSearchChange={onImageSearchChange}
+              restrictions={restrictions}
+              imageCount={imageCount} onImageCountChange={onImageCountChange}
             />
 
             {/* Bottom padding so last section isn't hidden behind run bar */}
             <div style={{ height: 16 }} />
           </div>
 
-          {/* Pinned run bar */}
+          {/* Pinned run bar — two action buttons */}
           <div className="v3-sp-run-bar">
-            <div className="v3-sp-run-bar-left">
-              <span className="v3-sp-run-count-label">Images</span>
-              <select
-                className="v3-sp-run-count-select"
-                value={imageCount}
-                onChange={(e) => onImageCountChange(Number(e.target.value))}
-              >
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
             <button
-              className={`v3-run-btn ${runDisabled ? 'v3-run-btn-disabled' : ''} ${runLabel === 'Saved!' ? 'v3-run-btn-success' : ''}`}
+              className={`v3-run-btn v3-run-btn--claude ${claudeLabel === 'Saved!' ? 'v3-run-btn-success' : ''}`}
+              onClick={onTalkToClaude}
+              disabled={claudeDisabled}
+              title="Save state for Claude Code to pick up"
+            >
+              {claudeLabel || 'Talk to Claude'}
+            </button>
+            <button
+              className={`v3-run-btn ${runDisabled ? 'v3-run-btn-disabled' : ''} ${runLabel === 'Done!' ? 'v3-run-btn-success' : ''}`}
               onClick={onRunNextAttempt}
               disabled={runDisabled}
             >

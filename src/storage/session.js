@@ -4,6 +4,8 @@
  */
 
 import * as db from './db'
+import { DEFAULT_IMAGE_MODEL } from '../modelConfig'
+import { createId } from '../utils/id'
 
 const DEFAULT_PROJECT_ID = 'project-default'
 const DEFAULT_SESSION_ID = 'session-default'
@@ -55,8 +57,8 @@ export async function listProjects() {
 }
 
 export async function createProject(name) {
-  const projectId = crypto.randomUUID()
-  const sessionId = crypto.randomUUID()
+  const projectId = createId()
+  const sessionId = createId()
   const now = Date.now()
 
   const project = {
@@ -87,7 +89,8 @@ export async function createProject(name) {
     refIds: [],
     outputIds: [],
     winnerIds: [],
-    model: 'gemini-3.1-flash-image-preview',
+    model: DEFAULT_IMAGE_MODEL,
+    promptPreviewMode: false,
   }
 
   await db.put('projects', project)
@@ -157,7 +160,8 @@ async function ensureDefaultProject() {
       refIds: [],
       outputIds: [],
       winnerIds: [],
-      model: 'gemini-3.1-flash-image-preview',
+      model: DEFAULT_IMAGE_MODEL,
+      promptPreviewMode: false,
     }
     await db.put('sessions', session)
   }
@@ -223,8 +227,9 @@ export async function loadProjectState(projectId) {
       buckets: { ...EMPTY_BUCKETS },
       assembled: '',
       assembledDirty: false,
-      model: 'gemini-3.1-flash-image-preview',
+      model: DEFAULT_IMAGE_MODEL,
       batchSize: 1,
+      promptPreviewMode: false,
       refs: [],
       lockedElements: [],
       outputs: [],
@@ -311,10 +316,11 @@ export async function loadProjectState(projectId) {
     planStatus: session.planStatus || 'idle',
     buckets: session.buckets || { ...EMPTY_BUCKETS },
     assembled: session.assembledPrompt || '',
-    assembledDirty: session.assembledPromptDirty || false,
-    model: session.model || 'gemini-3.1-flash-image-preview',
-    batchSize: session.batchSize || 1,
-    refs: hydratedRefs,
+      assembledDirty: session.assembledPromptDirty || false,
+      model: session.model || DEFAULT_IMAGE_MODEL,
+      batchSize: session.batchSize || 1,
+      promptPreviewMode: session.promptPreviewMode || false,
+      refs: hydratedRefs,
     lockedElements: orderedLocked.map((el) => ({
       id: el.id,
       text: el.text,
@@ -369,7 +375,7 @@ function base64ToBlob(base64, mimeType) {
 // --- Refs ---
 
 export async function saveRef(sessionId, ref) {
-  const { previewUrl, file, blob, ...persistable } = ref
+  const { previewUrl: _previewUrl, file: _file, blob, ...persistable } = ref
   // Convert blob to base64 for JSON-safe storage
   let blobBase64 = persistable.blobBase64 || null
   if (blob && !blobBase64) {
@@ -726,4 +732,19 @@ export async function loadAllProjectOutputsAndWinners(projectId) {
     allWinners.push(...r.winners)
   }
   return { outputs: allOutputs, winners: allWinners }
+}
+
+export async function loadAllSiteOutputsAndWinners() {
+  const [allOutputs, allWinners] = await Promise.all([
+    db.getAll('outputs'),
+    db.getAll('winners'),
+  ])
+
+  const normalizedOutputs = await normalizeOutputFeedback(allOutputs, allWinners)
+  normalizedOutputs.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+
+  return {
+    outputs: normalizedOutputs,
+    winners: allWinners,
+  }
 }

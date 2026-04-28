@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
 import * as persist from '../storage/session'
+import { createId } from '../utils/id'
 
 /**
  * useSystemMemory — owns all system-memory state and CRUD handlers.
@@ -66,7 +67,7 @@ export default function useSystemMemory({ activeProjectId, activeSessionId }) {
 
   const handleAddMemory = useCallback((memoryData) => {
     const memory = {
-      id: crypto.randomUUID(),
+      id: createId(),
       projectId: activeProjectId,
       sessionId: activeSessionId || null,
       outputId: memoryData.outputId || null,
@@ -104,7 +105,7 @@ export default function useSystemMemory({ activeProjectId, activeSessionId }) {
 
   const handleAddDoc = useCallback((docData) => {
     const doc = {
-      id: crypto.randomUUID(),
+      id: createId(),
       projectId: activeProjectId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -142,7 +143,7 @@ export default function useSystemMemory({ activeProjectId, activeSessionId }) {
     const existing = await persist.getSharedMemoryBySourceId(memoryId)
     if (existing) return
     const shared = {
-      id: crypto.randomUUID(),
+      id: createId(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       type: memory.type,
@@ -162,7 +163,7 @@ export default function useSystemMemory({ activeProjectId, activeSessionId }) {
     const existing = await persist.getSharedDocBySourceId(docId)
     if (existing) return
     const shared = {
-      id: crypto.randomUUID(),
+      id: createId(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       title: doc.title,
@@ -187,7 +188,7 @@ export default function useSystemMemory({ activeProjectId, activeSessionId }) {
       ))
     } else {
       const activation = {
-        id: crypto.randomUUID(),
+        id: createId(),
         projectId: activeProjectId,
         sharedItemId,
         sharedItemType,
@@ -239,7 +240,7 @@ export default function useSystemMemory({ activeProjectId, activeSessionId }) {
     )
     if (isDupe) return
     const lesson = {
-      id: crypto.randomUUID(),
+      id: createId(),
       projectId: activeProjectId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -262,7 +263,7 @@ export default function useSystemMemory({ activeProjectId, activeSessionId }) {
   const handleAddOverride = useCallback((overrideData) => {
     if (!activeProjectId) return
     const override = {
-      id: crypto.randomUUID(),
+      id: createId(),
       projectId: activeProjectId,
       createdAt: Date.now(),
       updatedAt: Date.now(),

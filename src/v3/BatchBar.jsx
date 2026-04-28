@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import SaveIndicator from './SaveIndicator'
 import { estimateBatchCost, formatCost } from './costUtils'
+import { getImageUrl } from '../utils/imageUrl.js'
 
 function CharCounter({ value, max }) {
   const len = (value || '').trim().length
@@ -81,11 +82,12 @@ export default function BatchBar({ batch, onUpdateBatchNotes }) {
     const outputs = batch.outputs
     for (let i = 0; i < outputs.length; i++) {
       const o = outputs[i]
-      if (!o.dataUrl) continue
+      const oUrl = getImageUrl(o)
+      if (!oUrl) continue
       const ext = o.mimeType === 'image/png' ? 'png' : 'jpg'
       const filename = `Batch-${batch.number}-${i + 1}of${outputs.length}-${o.id.slice(0, 8)}.${ext}`
       const link = document.createElement('a')
-      link.href = o.dataUrl
+      link.href = oUrl
       link.download = filename
       document.body.appendChild(link)
       link.click()

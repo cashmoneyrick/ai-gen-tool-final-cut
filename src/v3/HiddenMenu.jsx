@@ -20,7 +20,7 @@ const MoonIcon = () => (
   </svg>
 )
 
-export default function HiddenMenu({ onSetViewMode, darkMode, onToggleDark, onOpenInsights }) {
+export default function HiddenMenu({ darkMode, onToggleDark, onClearRestrictions, onPreviewLoading }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -49,9 +49,9 @@ export default function HiddenMenu({ onSetViewMode, darkMode, onToggleDark, onOp
 
       {open && (
         <div className="v3-hidden-popup">
-          <button onClick={() => { onOpenInsights?.(); setOpen(false) }}>Insights</button>
-          <button onClick={() => { onSetViewMode('v1'); setOpen(false) }}>V1 Studio</button>
-          <button onClick={() => { onSetViewMode('v2'); setOpen(false) }}>V2 Console</button>
+          <div className="v3-hidden-popup-label">Studio Utilities</div>
+          <button onClick={() => { onClearRestrictions?.(); setOpen(false) }}>Clear Generation Restrictions</button>
+          <button onClick={() => { onPreviewLoading?.(); setOpen(false) }}>Preview Loading Screen</button>
         </div>
       )}
     </div>

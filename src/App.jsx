@@ -4,6 +4,71 @@ import useSystemMemory from './hooks/useSystemMemory'
 import useLiveSync from './hooks/useLiveSync'
 import { buildIterationContext } from './planning/iterationContext'
 import * as persist from './storage/session'
+import { normalizePromptSections, parseStructuredPrompt, renderStructuredPrompt } from './prompt/structuredPrompt'
+import { DEFAULT_IMAGE_MODEL, resolveImageModel } from './modelConfig'
+import { createId } from './utils/id'
+
+function AppLoadingScreen() {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: '#080809',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      fontFamily: '"SF Mono", Menlo, Monaco, monospace',
+      WebkitFontSmoothing: 'antialiased',
+      overflow: 'hidden',
+    }}>
+      <style>{`
+        @keyframes ls-cell { 0%,100%{opacity:.25} 50%{opacity:1} }
+        @keyframes ls-sweep { 0%{transform:translateX(-100%)} 100%{transform:translateX(100vw)} }
+        @keyframes ls-fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+
+      {/* Subtle radial glow */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(10,132,255,0.06) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* 2×2 grid icon — cells pulse sequentially */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px', animation: 'ls-fade 0.4s ease both' }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} style={{
+            width: '22px', height: '22px',
+            borderRadius: '3px',
+            background: '#0a84ff',
+            opacity: 0.25,
+            animation: `ls-cell 1.6s ease-in-out ${i * 0.2}s infinite`,
+          }} />
+        ))}
+      </div>
+
+      {/* Wordmark */}
+      <div style={{
+        marginTop: '22px',
+        fontSize: '9px',
+        letterSpacing: '0.22em',
+        color: 'rgba(255,255,255,0.35)',
+        textTransform: 'uppercase',
+        animation: 'ls-fade 0.5s 0.1s ease both',
+        userSelect: 'none',
+      }}>
+        GEN
+      </div>
+
+      {/* Sweep line at bottom */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '1px', overflow: 'hidden' }}>
+        <div style={{
+          height: '1px', width: '30%',
+          background: 'linear-gradient(90deg, transparent, rgba(10,132,255,0.6), transparent)',
+          animation: 'ls-sweep 1.8s ease-in-out infinite',
+        }} />
+      </div>
+    </div>
+  )
+}
 
 const EMPTY_BUCKETS = {
   subject: '',
@@ -14,6 +79,11 @@ const EMPTY_BUCKETS = {
 }
 
 const FALLBACK_OUTPUT_DISPLAY_ID = 'Output —'
+let pendingSessionSaveTimer = null
+
+function isPromptPreviewOutput(output) {
+  return output?.outputKind === 'prompt-preview'
+}
 
 function formatOutputDisplayId(index) {
   return `Output ${String(index + 1).padStart(3, '0')}`
@@ -44,10 +114,23 @@ function buildOutputDisplayIdMap(outputs) {
   )
 }
 
+function buildNextProjectName(projects) {
+  const existingNames = new Set((projects || []).map((project) => String(project?.name || '').trim().toLowerCase()))
+  if (!existingNames.has('new project')) return 'New Project'
+
+  let counter = 2
+  while (existingNames.has(`new project ${counter}`)) {
+    counter += 1
+  }
+  return `New Project ${counter}`
+}
+
 
 export default function App() {
   // --- Hydration flag ---
   const [hydrated, setHydrated] = useState(false)
+  const [trustSignal, setTrustSignal] = useState(null)
+  const trustSignalTimerRef = useRef(null)
 
   // --- Project state ---
   const [activeProjectId, setActiveProjectId] = useState(null)
@@ -59,13 +142,18 @@ export default function App() {
   const [buckets, setBuckets] = useState({ ...EMPTY_BUCKETS })
   const [assembled, setAssembled] = useState('')
   const [assembledDirty, setAssembledDirty] = useState(false)
+  const [promptPreviewMode, setPromptPreviewMode] = useState(false)
   const [refs, setRefs] = useState([])
   const refsRef = useRef(refs)
-  refsRef.current = refs
+  const outputsRef = useRef([])
 
   const [batchSize, setBatchSize] = useState(1)
   const [outputs, setOutputs] = useState([])
   const [projectOutputCatalog, setProjectOutputCatalog] = useState([])
+  const [sitewideOutputCatalog, setSitewideOutputCatalog] = useState([])
+  const [sitewideWinners, setSitewideWinners] = useState([])
+  const [projectBrief, setProjectBrief] = useState(null)
+  const [requestedOutputId, setRequestedOutputId] = useState(null)
 
   // Winners state
   const [winners, setWinners] = useState([])
@@ -77,7 +165,19 @@ export default function App() {
   const systemMemory = useSystemMemory({ activeProjectId, activeSessionId })
 
   // Model selection state
-  const [model, setModel] = useState('gemini-3.1-flash-image-preview')
+  const [model, setModel] = useState(DEFAULT_IMAGE_MODEL)
+  const loadRequestRef = useRef(0)
+
+  const publishTrustSignal = useCallback((signal) => {
+    if (trustSignalTimerRef.current) {
+      clearTimeout(trustSignalTimerRef.current)
+    }
+    setTrustSignal({ ...signal, at: Date.now() })
+    trustSignalTimerRef.current = setTimeout(() => {
+      setTrustSignal(null)
+      trustSignalTimerRef.current = null
+    }, 6000)
+  }, [])
 
   // --- Helper: apply loaded state to all React state ---
   const applyState = useCallback((state) => {
@@ -86,14 +186,15 @@ export default function App() {
     setBuckets(state.buckets)
     setAssembled(state.assembled)
     setAssembledDirty(state.assembledDirty)
-    setModel(state.model)
+    setPromptPreviewMode(state.promptPreviewMode || false)
+    setModel(resolveImageModel(state.model))
     setBatchSize(state.batchSize || 1)
     setRefs(state.refs)
     setLockedElements(state.lockedElements)
     setOutputs(state.outputs)
     setWinners(state.winners)
     systemMemory.hydrate(state)
-  }, [])
+  }, [systemMemory])
 
   // --- Helper: revoke current ref preview URLs ---
   const revokeRefUrls = useCallback(() => {
@@ -102,56 +203,116 @@ export default function App() {
     })
   }, [])
 
+  const revokeRefListUrls = useCallback((refList) => {
+    ;(refList || []).forEach((ref) => {
+      if (ref?.previewUrl) URL.revokeObjectURL(ref.previewUrl)
+    })
+  }, [])
+
+  const flushPendingSessionSave = useCallback(async () => {
+    if (!activeSessionId) return
+    if (pendingSessionSaveTimer) {
+      clearTimeout(pendingSessionSaveTimer)
+      pendingSessionSaveTimer = null
+    }
+    await persist.saveSessionFields(activeSessionId, {
+      goal,
+      buckets,
+      assembledPrompt: assembled,
+      assembledPromptDirty: assembledDirty,
+      promptPreviewMode,
+      model,
+      batchSize,
+    })
+  }, [activeSessionId, goal, buckets, assembled, assembledDirty, promptPreviewMode, model, batchSize])
+
+  const loadProjectIntoState = useCallback(async (projectId, { setAsActive = false, nextProjects = null } = {}) => {
+    const requestId = ++loadRequestRef.current
+    const [projectData, sitewideData, state, projectList] = await Promise.all([
+      persist.loadAllProjectOutputsAndWinners(projectId),
+      persist.loadAllSiteOutputsAndWinners(),
+      persist.loadProjectState(projectId),
+      nextProjects ? Promise.resolve(nextProjects) : persist.listAllProjects(),
+    ])
+
+    if (requestId !== loadRequestRef.current) {
+      revokeRefListUrls(state.refs)
+      return false
+    }
+
+    if (setAsActive) setActiveProjectId(projectId)
+    setProjects(projectList)
+    setProjectOutputCatalog(projectData.outputs)
+    setSitewideOutputCatalog(sitewideData.outputs)
+    setSitewideWinners(sitewideData.winners)
+    applyState(state)
+    return true
+  }, [applyState, revokeRefListUrls])
+
   // --- Hydrate from IndexedDB on mount ---
   useEffect(() => {
     async function init() {
       try {
         const projectId = await persist.getActiveProjectId()
-        const [{ outputs: allProjectOutputs }, state, projectList] = await Promise.all([
-          persist.loadAllProjectOutputsAndWinners(projectId),
-          persist.loadProjectState(projectId),
-          persist.listAllProjects(),
-        ])
-        setActiveProjectId(projectId)
-        setProjects(projectList)
-        setProjectOutputCatalog(allProjectOutputs)
-        applyState(state)
+        await loadProjectIntoState(projectId, { setAsActive: true })
       } catch (err) {
         console.error('Failed to hydrate from IndexedDB:', err)
       }
       setHydrated(true)
     }
     init()
-  }, [applyState])
+  }, [loadProjectIntoState])
+
+  // --- Revoke preview URLs on unmount ---
+  useEffect(() => {
+    refsRef.current = refs
+  }, [refs])
+
+  useEffect(() => {
+    outputsRef.current = outputs
+  }, [outputs])
 
   // --- Revoke preview URLs on unmount ---
   useEffect(() => {
     return () => revokeRefUrls()
   }, [revokeRefUrls])
 
-  // --- Persistence effects (only after hydration) ---
-
-  const debounceRef = useRef({})
-  const debouncedSave = useCallback((key, fn, delay = 500) => {
-    clearTimeout(debounceRef.current[key])
-    debounceRef.current[key] = setTimeout(fn, delay)
+  useEffect(() => {
+    return () => {
+      if (trustSignalTimerRef.current) {
+        clearTimeout(trustSignalTimerRef.current)
+        trustSignalTimerRef.current = null
+      }
+    }
   }, [])
+
+  // --- Persistence effects (only after hydration) ---
 
   // Save session-level fields (debounced)
   useEffect(() => {
     if (!hydrated || !activeSessionId) return
     const sid = activeSessionId
-    debouncedSave('session', () => {
+    if (pendingSessionSaveTimer) clearTimeout(pendingSessionSaveTimer)
+    pendingSessionSaveTimer = setTimeout(() => {
       persist.saveSessionFields(sid, {
         goal,
         buckets,
         assembledPrompt: assembled,
         assembledPromptDirty: assembledDirty,
+        promptPreviewMode,
         model,
         batchSize,
       })
-    })
-  }, [hydrated, activeSessionId, goal, buckets, assembled, assembledDirty, model, batchSize, debouncedSave])
+      pendingSessionSaveTimer = null
+    }, 500)
+
+    return () => {
+      if (pendingSessionSaveTimer) {
+        clearTimeout(pendingSessionSaveTimer)
+        pendingSessionSaveTimer = null
+      }
+    }
+  }, [hydrated, activeSessionId, goal, buckets, assembled, assembledDirty, promptPreviewMode, model, batchSize])
 
   // Save ref ordering
   useEffect(() => {
@@ -180,51 +341,81 @@ export default function App() {
   // --- Project handlers ---
 
   const handleCreateProject = useCallback(async () => {
-    const { projectId, project } = await persist.createProject('New Project')
-    persist.setActiveProjectId(projectId)
-    setActiveProjectId(projectId)
-    setProjects((prev) => [project, ...prev])
-    // Load empty state for new project
-    const [{ outputs: allProjectOutputs }, state] = await Promise.all([
-      persist.loadAllProjectOutputsAndWinners(projectId),
-      persist.loadProjectState(projectId),
-    ])
+    const nextName = buildNextProjectName(projects)
+    const { projectId, project } = await persist.createProject(nextName)
+    await persist.setActiveProjectId(projectId)
     revokeRefUrls()
-    setProjectOutputCatalog(allProjectOutputs)
-    applyState(state)
-  }, [applyState, revokeRefUrls])
+    const nextProjects = [project, ...projects]
+    await loadProjectIntoState(projectId, { setAsActive: true, nextProjects })
+    return { projectId, project }
+  }, [loadProjectIntoState, projects, revokeRefUrls])
 
   const handleSwitchProject = useCallback(async (projectId) => {
     if (projectId === activeProjectId) return
-    // Flush any pending debounced saves for current session
-    Object.values(debounceRef.current).forEach(clearTimeout)
-    debounceRef.current = {}
+    await flushPendingSessionSave().catch((err) => {
+      console.warn('[session] failed to flush before project switch', err)
+    })
+    if (pendingSessionSaveTimer) {
+      clearTimeout(pendingSessionSaveTimer)
+      pendingSessionSaveTimer = null
+    }
 
-    persist.setActiveProjectId(projectId)
-    setActiveProjectId(projectId)
+    await persist.setActiveProjectId(projectId)
     revokeRefUrls()
-    const [{ outputs: allProjectOutputs }, state] = await Promise.all([
-      persist.loadAllProjectOutputsAndWinners(projectId),
-      persist.loadProjectState(projectId),
-    ])
-    setProjectOutputCatalog(allProjectOutputs)
-    applyState(state)
-  }, [activeProjectId, applyState, revokeRefUrls])
+    await loadProjectIntoState(projectId, { setAsActive: true, nextProjects: projects })
+  }, [activeProjectId, flushPendingSessionSave, loadProjectIntoState, projects, revokeRefUrls])
+
+  const handleOpenOutput = useCallback(async (output) => {
+    if (!output?.id) return
+
+    setRequestedOutputId(output.id)
+
+    if (output.projectId === activeProjectId) {
+      return
+    }
+
+    await flushPendingSessionSave().catch((err) => {
+      console.warn('[session] failed to flush before output switch', err)
+    })
+    if (pendingSessionSaveTimer) {
+      clearTimeout(pendingSessionSaveTimer)
+      pendingSessionSaveTimer = null
+    }
+
+    if (output.projectId) {
+      await persist.setActiveProjectId(output.projectId)
+      revokeRefUrls()
+      await loadProjectIntoState(output.projectId, { setAsActive: true, nextProjects: projects })
+    }
+  }, [activeProjectId, flushPendingSessionSave, loadProjectIntoState, projects, revokeRefUrls])
 
   // Re-read all shared JSON state from disk for the current project
   const handleSyncState = useCallback(async () => {
     const pid = activeProjectId
     if (!pid) return
-    const [{ outputs: allProjectOutputs }, state] = await Promise.all([
-      persist.loadAllProjectOutputsAndWinners(pid),
-      persist.loadProjectState(pid),
-    ])
-    setProjectOutputCatalog(allProjectOutputs)
-    applyState(state)
-  }, [activeProjectId, applyState])
+    await loadProjectIntoState(pid, { nextProjects: projects })
+  }, [activeProjectId, loadProjectIntoState, projects])
 
   // Auto-sync when data files change on disk (from CLI operator, etc.)
-  useLiveSync(handleSyncState, hydrated)
+  const liveSync = useLiveSync(handleSyncState, hydrated)
+
+  const recoverFromPersistenceError = useCallback(async (label, error) => {
+    console.warn(`[studio] ${label} failed; re-syncing from disk`, error)
+    await handleSyncState().then(() => {
+      publishTrustSignal({
+        tone: 'recovered',
+        label: 'Recovered from save issue',
+        detail: `${label} was restored from disk state.`,
+      })
+    }).catch((syncError) => {
+      console.error('[studio] failed to recover from persistence error', syncError)
+      publishTrustSignal({
+        tone: 'error',
+        label: 'Sync needs attention',
+        detail: 'Automatic recovery failed. Refresh if the view looks stale.',
+      })
+    })
+  }, [handleSyncState, publishTrustSignal])
 
   const handleRenameProject = useCallback(async (projectId, name) => {
     await persist.renameProject(projectId, name)
@@ -254,82 +445,7 @@ export default function App() {
     )
   }, [])
 
-  const handleUpdateOutputNotes = useCallback(async (outputId, notes) => {
-    let updatedOutput = null
-    setOutputs((prev) =>
-      prev.map((output) => {
-        if (output.id !== outputId) return output
-        const updated = { ...output, notes }
-        updatedOutput = updated
-        return updated
-      })
-    )
-    if (updatedOutput && activeProjectId && activeSessionId) {
-      await persist.saveOutput(activeProjectId, activeSessionId, updatedOutput)
-    }
-  }, [activeProjectId, activeSessionId])
-
-  const handleUpdateFeedbackNotes = useCallback(async (outputId, notesKeep, notesFix, originals) => {
-    // Auto-derive feedback from which fields have content
-    const hasKeep = notesKeep && notesKeep.trim().length > 0
-    const hasFix = notesFix && notesFix.trim().length > 0
-    const feedback = hasKeep && !hasFix ? 'up' : hasFix && !hasKeep ? 'down' : hasKeep && hasFix ? 'down' : null
-
-    let updatedOutput = null
-    setOutputs((prev) =>
-      prev.map((output) => {
-        if (output.id !== outputId) return output
-        const updated = { ...output, notesKeep: notesKeep || '', notesFix: notesFix || '', feedback }
-        // Preserve original text on first cleanup (write-once)
-        if (originals) {
-          if (originals.notesKeep && !output.originalNotesKeep) updated.originalNotesKeep = originals.notesKeep
-          if (originals.notesFix && !output.originalNotesFix) updated.originalNotesFix = originals.notesFix
-        }
-        updatedOutput = updated
-        return updated
-      })
-    )
-    if (updatedOutput && activeProjectId && activeSessionId) {
-      await persist.saveOutput(activeProjectId, activeSessionId, updatedOutput)
-    }
-  }, [activeProjectId, activeSessionId])
-
-  const handleUpdateBatchNotes = useCallback(async (batchCreatedAt, notesKeep, notesFix, originals) => {
-    // Save batch notes to ALL outputs sharing the same createdAt
-    const updatedOutputs = []
-    setOutputs((prev) =>
-      prev.map((output) => {
-        if (output.createdAt !== batchCreatedAt) return output
-        const updated = { ...output, batchNotesKeep: notesKeep || '', batchNotesFix: notesFix || '' }
-        // Preserve original text on first cleanup (write-once)
-        if (originals) {
-          if (originals.batchNotesKeep && !output.originalBatchNotesKeep) updated.originalBatchNotesKeep = originals.batchNotesKeep
-          if (originals.batchNotesFix && !output.originalBatchNotesFix) updated.originalBatchNotesFix = originals.batchNotesFix
-        }
-        updatedOutputs.push(updated)
-        return updated
-      })
-    )
-    if (activeProjectId && activeSessionId) {
-      await Promise.all(
-        updatedOutputs.map((o) => persist.saveOutput(activeProjectId, activeSessionId, o))
-      )
-    }
-  }, [activeProjectId, activeSessionId])
-
   // --- Derived state ---
-
-  const outputsById = useMemo(() => {
-    const map = new Map()
-    for (const output of outputs) map.set(output.id, output)
-    return map
-  }, [outputs])
-
-  // Derive iteration carry-forward context from winners + linked outputs
-  const iterationContext = useMemo(
-    () => buildIterationContext(winners, outputsById),
-    [winners, outputsById]
-  )
 
   const outputDisplayIdMap = useMemo(
     () => buildOutputDisplayIdMap(projectOutputCatalog),
@@ -351,6 +467,51 @@ export default function App() {
     })),
     [winners, outputDisplayIdMap]
   )
+
+  const outputsById = useMemo(() => {
+    const map = new Map()
+    for (const output of outputs) {
+      if (isPromptPreviewOutput(output)) continue
+      map.set(output.id, output)
+    }
+    return map
+  }, [outputs])
+
+  const iterationContext = useMemo(
+    () => buildIterationContext(winners, outputsById),
+    [winners, outputsById]
+  )
+
+  const activeProject = useMemo(
+    () => projects.find((project) => project.id === activeProjectId) || null,
+    [projects, activeProjectId]
+  )
+
+  const workflowSummary = useMemo(() => ({
+    outputCount: outputs.length,
+    winnerCount: winners.length,
+    refCount: refs.length,
+    activeRefCount: refs.filter((ref) => ref.send !== false).length,
+  }), [outputs, winners, refs])
+
+  useEffect(() => {
+    if (!activeProjectId) return
+
+    let cancelled = false
+    fetch(`/api/briefs/${activeProjectId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((brief) => {
+        if (cancelled) return
+        setProjectBrief(brief || null)
+      })
+      .catch(() => {
+        if (!cancelled) setProjectBrief(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeProjectId, outputs.length, winners.length])
 
 
   const handleAddRefs = useCallback(async (files) => {
@@ -390,7 +551,7 @@ export default function App() {
         continue
       }
       const ref = {
-        id: crypto.randomUUID(),
+        id: createId(),
         file,
         blob: file,
         name: file.name,
@@ -400,7 +561,16 @@ export default function App() {
         send: true,
         createdAt: Date.now(),
       }
-      if (activeSessionId) persist.saveRef(activeSessionId, ref)
+      if (activeSessionId) {
+        try {
+          await persist.saveRef(activeSessionId, ref)
+        } catch (error) {
+          URL.revokeObjectURL(url)
+          errors.push(`${file.name}: failed to save in the current session`)
+          console.warn('[refs] failed to persist ref', error)
+          continue
+        }
+      }
       validRefs.push(ref)
     }
 
@@ -413,33 +583,60 @@ export default function App() {
       prev.map((r) => {
         if (r.id !== id) return r
         const updated = { ...r, send: !r.send }
-        if (activeSessionId) persist.saveRef(activeSessionId, updated)
+        if (activeSessionId) {
+          persist.saveRef(activeSessionId, updated).catch((error) => {
+            recoverFromPersistenceError('ref include toggle', error)
+          })
+        }
         return updated
       })
     )
-  }, [activeSessionId])
+  }, [activeSessionId, recoverFromPersistenceError])
 
-  const handleToggleRefAnchor = useCallback((id) => {
+  const handleUpdateRefMode = useCallback((id, mode) => {
     setRefs((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r
-        const updated = { ...r, anchor: !r.anchor }
-        if (activeSessionId) persist.saveRef(activeSessionId, updated)
+        // Map mode to anchor for backward compat with operator prompt assembly
+        const anchor = mode === 'match' || mode === 'style'
+        const updated = { ...r, mode, anchor }
+        if (activeSessionId) {
+          persist.saveRef(activeSessionId, updated).catch((error) => {
+            recoverFromPersistenceError('ref mode update', error)
+          })
+        }
         return updated
       })
     )
-  }, [activeSessionId])
+  }, [activeSessionId, recoverFromPersistenceError])
+
+  const handleReorderRefs = useCallback((newOrder) => {
+    setRefs((prev) => {
+      const refMap = new Map(prev.map((r) => [r.id, r]))
+      return newOrder.map((id) => refMap.get(id)).filter(Boolean)
+    })
+    // Persist the new order via session refIds
+    if (activeSessionId) {
+      persist.updateRefIds?.(activeSessionId, newOrder).catch((error) => {
+        recoverFromPersistenceError('ref reorder', error)
+      })
+    }
+  }, [activeSessionId, recoverFromPersistenceError])
 
   const handleUpdateRefNotes = useCallback((id, notes) => {
     setRefs((prev) =>
       prev.map((r) => {
         if (r.id !== id) return r
         const updated = { ...r, notes }
-        if (activeSessionId) persist.saveRef(activeSessionId, updated)
+        if (activeSessionId) {
+          persist.saveRef(activeSessionId, updated).catch((error) => {
+            recoverFromPersistenceError('ref notes update', error)
+          })
+        }
         return updated
       })
     )
-  }, [activeSessionId])
+  }, [activeSessionId, recoverFromPersistenceError])
 
   const handleRemoveRef = useCallback((id) => {
     setRefs((prev) => {
@@ -447,8 +644,75 @@ export default function App() {
       if (target && target.previewUrl) URL.revokeObjectURL(target.previewUrl)
       return prev.filter((r) => r.id !== id)
     })
-    persist.deleteRef(id)
-  }, [])
+    persist.deleteRef(id).catch((error) => {
+      recoverFromPersistenceError('ref removal', error)
+    })
+  }, [recoverFromPersistenceError])
+
+  const handleMarkWinner = useCallback(async (output) => {
+    if (!output || !activeProjectId || !activeSessionId) return
+    const existingIdx = winners.findIndex((w) => w.outputId === output.id)
+    if (existingIdx >= 0) {
+      // Remove winner
+      const winnerId = winners[existingIdx].id
+      const next = winners.filter((w) => w.id !== winnerId)
+      setWinners(next)
+      persist.deleteWinner(winnerId).catch((error) => {
+        recoverFromPersistenceError('winner removal', error)
+      })
+      handleUpdateOutputFeedback(output.id, null)
+    } else {
+      // Add winner
+      const winner = {
+        id: createId(),
+        sessionId: activeSessionId,
+        outputId: output.id,
+        feedback: output.feedback,
+        recipe: {
+          prompt: output.finalPromptSent || output.prompt || '',
+          model: output.model,
+        },
+        createdAt: Date.now(),
+      }
+      setWinners((prev) => [...prev, winner])
+      persist.saveWinner(activeProjectId, activeSessionId, winner).catch((error) => {
+        recoverFromPersistenceError('winner save', error)
+      })
+
+      // Auto-rate 5 when marking winner
+      if (output.feedback !== 5) {
+        handleUpdateOutputFeedback(output.id, 5)
+      }
+
+      // Auto-add recipe to upscale queue
+      try {
+        const queueItem = {
+          id: createId(),
+          outputId: output.id,
+          name: output.model || 'Image',
+          model: output.model || '',
+          prompt: output.finalPromptSent || output.prompt || '',
+          imageSize: output.metadata?.imageSize || '',
+          aspectRatio: output.metadata?.aspectRatio || '',
+          status: 'pending',
+          createdAt: Date.now(),
+        }
+        const res = await fetch('/api/upscale-queue')
+        const queue = res.ok ? await res.json() : []
+        // Don't duplicate if already queued
+        if (!queue.some((q) => q.outputId === output.id)) {
+          queue.push(queueItem)
+          await fetch('/api/upscale-queue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(queue),
+          })
+        }
+      } catch (error) {
+        console.warn('[winner-upscale-sync] failed to queue upscale recipe', error)
+      }
+    }
+  }, [activeProjectId, activeSessionId, winners, recoverFromPersistenceError])
 
   const handleUpdateOutputFeedback = useCallback((outputId, feedback) => {
     setOutputs((prev) =>
@@ -457,53 +721,139 @@ export default function App() {
         if (output.feedback === feedback) return output
         const updated = { ...output, feedback }
         if (activeProjectId && activeSessionId) {
-          persist.saveOutput(activeProjectId, activeSessionId, updated)
+          persist.saveOutput(activeProjectId, activeSessionId, updated).catch((error) => {
+            recoverFromPersistenceError('output feedback save', error)
+          })
         }
         return updated
       })
     )
-  }, [activeProjectId, activeSessionId])
+  }, [activeProjectId, activeSessionId, recoverFromPersistenceError])
+
+  const handleUpdateOutputNotes = useCallback(async (outputId, notesKeep, notesFix) => {
+    const existingOutput = outputsRef.current.find((output) => output.id === outputId)
+    if (!existingOutput || !activeProjectId || !activeSessionId) return
+
+    const updatedOutput = {
+      ...existingOutput,
+      notesKeep: notesKeep || '',
+      notesFix: notesFix || '',
+    }
+
+    setOutputs((prev) =>
+      prev.map((output) => (output.id === outputId ? updatedOutput : output))
+    )
+
+    try {
+      await persist.saveOutput(activeProjectId, activeSessionId, updatedOutput)
+    } catch (error) {
+      await recoverFromPersistenceError('output notes save', error)
+      throw error
+    }
+  }, [activeProjectId, activeSessionId, recoverFromPersistenceError])
+
+  const handleUpdatePromptPreviewText = useCallback(async (outputId, promptSections, promptText) => {
+    const existingOutput = outputsRef.current.find((output) => output.id === outputId)
+    if (!existingOutput || !activeProjectId || !activeSessionId) return
+
+    const sections = normalizePromptSections(
+      promptSections || existingOutput.promptPreviewSections || parseStructuredPrompt(promptText || existingOutput.promptPreviewText || '')
+    )
+    const nextPromptText = promptText || renderStructuredPrompt(sections)
+
+    const updatedOutput = {
+      ...existingOutput,
+      promptPreviewSections: sections,
+      promptPreviewText: nextPromptText,
+    }
+
+    setOutputs((prev) =>
+      prev.map((output) => (output.id === outputId ? updatedOutput : output))
+    )
+
+    try {
+      await persist.saveOutput(activeProjectId, activeSessionId, updatedOutput)
+    } catch (error) {
+      await recoverFromPersistenceError('prompt preview edit save', error)
+      throw error
+    }
+  }, [activeProjectId, activeSessionId, recoverFromPersistenceError])
+
+  const handleUsePromptPreviewAsBase = useCallback(async (outputId, promptSections, promptText) => {
+    if (!activeSessionId) return
+    const sections = normalizePromptSections(promptSections || parseStructuredPrompt(promptText || ''))
+    const nextPromptText = promptText || renderStructuredPrompt(sections)
+    setBuckets(sections)
+    setAssembled(nextPromptText)
+    setAssembledDirty(true)
+    try {
+      await persist.saveSessionFields(activeSessionId, {
+        buckets: sections,
+        assembledPrompt: nextPromptText,
+        assembledPromptDirty: true,
+      })
+    } catch (error) {
+      await recoverFromPersistenceError('prompt preview base apply', error)
+      throw error
+    }
+  }, [activeSessionId, recoverFromPersistenceError])
+
+  const handleTogglePromptPreview = useCallback(() => {
+    const nextValue = !promptPreviewMode
+    setPromptPreviewMode(nextValue)
+    if (activeSessionId) {
+      persist.saveSessionFields(activeSessionId, {
+        promptPreviewMode: nextValue,
+      }).catch((error) => {
+        recoverFromPersistenceError('prompt preview mode save', error)
+      })
+    }
+  }, [activeSessionId, promptPreviewMode, recoverFromPersistenceError])
 
   // --- Loading state ---
   if (!hydrated) {
-    return (
-      <div className="app">
-        <div style={{ padding: '40px 16px', textAlign: 'center' }}>
-          Loading...
-        </div>
-      </div>
-    )
+    return <AppLoadingScreen />
   }
 
   return (
     <div className="app">
       <ReviewConsole
           outputs={outputsWithDisplayIds}
+          stripOutputs={sitewideOutputCatalog}
           winners={winnersWithDisplayIds}
+          stripWinners={sitewideWinners}
           projects={projects}
           activeProjectId={activeProjectId}
           activeSessionId={activeSessionId}
-          project={projects.find(p => p.id === activeProjectId)}
-          session={{ goal, model, assembledPrompt: assembled, batchSize }}
-          lockedElements={lockedElements}
+          project={activeProject}
+          requestedOutputId={requestedOutputId}
+          onConsumeRequestedOutputId={() => setRequestedOutputId(null)}
+          onOpenOutput={handleOpenOutput}
           refs={refs}
           onAddRefs={handleAddRefs}
           onRemoveRef={handleRemoveRef}
           onToggleRefSend={handleToggleRefSend}
-          onToggleRefAnchor={handleToggleRefAnchor}
+          onUpdateRefMode={handleUpdateRefMode}
+          onReorderRefs={handleReorderRefs}
           onUpdateRefNotes={handleUpdateRefNotes}
-          iterationContext={iterationContext}
-          onSync={handleSyncState}
           onUpdateOutputFeedback={handleUpdateOutputFeedback}
-          onUpdateOutputNotes={handleUpdateOutputNotes}
-          onUpdateFeedbackNotes={handleUpdateFeedbackNotes}
-          onUpdateBatchNotes={handleUpdateBatchNotes}
+          onUpdateFeedbackNotes={handleUpdateOutputNotes}
           onSwitchProject={handleSwitchProject}
           onCreateProject={handleCreateProject}
           onRenameProject={handleRenameProject}
           onArchiveProject={handleArchiveProject}
           onRestoreProject={handleRestoreProject}
-          onUpdateBatchSize={setBatchSize}
+          onMarkWinner={handleMarkWinner}
+          liveSync={liveSync}
+          trustSignal={trustSignal}
+          workflowSummary={workflowSummary}
+          iterationContext={iterationContext}
+          memoryStatus={systemMemory.status}
+          projectBrief={projectBrief}
+          promptPreviewMode={promptPreviewMode}
+          onTogglePromptPreview={handleTogglePromptPreview}
+          onUpdatePromptPreviewText={handleUpdatePromptPreviewText}
+          onUsePromptPreviewAsBase={handleUsePromptPreviewAsBase}
         />
     </div>
   )

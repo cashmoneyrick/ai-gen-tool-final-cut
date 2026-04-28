@@ -1,4 +1,6 @@
-import { useRef, useEffect, useMemo } from 'react'
+import { Fragment, useRef, useEffect, useMemo } from 'react'
+import { normalizeFeedback } from '../reviewFeedback.js'
+import { getImageUrl } from '../utils/imageUrl.js'
 
 // Rainbow palette — each entry is an RGB triplet string for use in rgba()
 // Cycles through distinct, vibrant hues so every batch is unmistakable
@@ -17,19 +19,32 @@ const BATCH_COLORS = [
   '76, 217, 100',    // lime
 ]
 
-export default function ThumbnailStrip({ outputs, currentIndex, onNavigate }) {
+function isPromptPreviewOutput(output) {
+  return output?.outputKind === 'prompt-preview'
+}
+
+export default function ThumbnailStrip({ outputs, currentOutputId, onNavigate, winners }) {
   const stripRef = useRef(null)
   const activeRef = useRef(null)
 
   useEffect(() => {
-    if (activeRef.current) {
-      activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    const thumb = activeRef.current
+    const strip = stripRef.current
+    if (!thumb || !strip) return
+    // Scroll only within the strip — never bubble to the page
+    const isHorizontal = strip.scrollWidth > strip.clientWidth && strip.scrollHeight <= strip.clientHeight + 4
+    if (isHorizontal) {
+      const center = thumb.offsetLeft - strip.offsetLeft - (strip.clientWidth - thumb.offsetWidth) / 2
+      strip.scrollTo({ left: Math.max(0, center), behavior: 'smooth' })
+    } else {
+      const center = thumb.offsetTop - strip.offsetTop - (strip.clientHeight - thumb.offsetHeight) / 2
+      strip.scrollTo({ top: Math.max(0, center), behavior: 'smooth' })
     }
-  }, [currentIndex])
+  }, [currentOutputId])
 
   // Build batch groups with metadata
-  const { batchGroups, globalIndexMap } = useMemo(() => {
-    if (!outputs || outputs.length === 0) return { batchGroups: [], globalIndexMap: new Map() }
+  const batchGroups = useMemo(() => {
+    if (!outputs || outputs.length === 0) return []
 
     const groups = []
     let current = { createdAt: outputs[0]?.createdAt, items: [] }
@@ -45,18 +60,10 @@ export default function ThumbnailStrip({ outputs, currentIndex, onNavigate }) {
     groups.push(current)
 
     const total = groups.length
-    const indexMap = new Map()
-    let runningIdx = 0
 
     const enriched = groups.map((g, i) => {
-      const startIdx = runningIdx
-      for (const o of g.items) {
-        indexMap.set(o.id, runningIdx)
-        runningIdx++
-      }
       return {
         ...g,
-        startIdx,
         batchNum: total - i,
         isNewest: i === 0,
         age: i,
@@ -64,7 +71,7 @@ export default function ThumbnailStrip({ outputs, currentIndex, onNavigate }) {
       }
     })
 
-    return { batchGroups: enriched, globalIndexMap: indexMap }
+    return enriched
   }, [outputs])
 
   if (!outputs || outputs.length === 0) return null
@@ -80,7 +87,7 @@ export default function ThumbnailStrip({ outputs, currentIndex, onNavigate }) {
   return (
     <div className="v3-thumbstrip" ref={stripRef}>
       {batchGroups.map((group, groupIdx) => (
-        <span key={group.createdAt} style={{ display: 'contents' }}>
+        <Fragment key={group.createdAt}>
           {/* Separator bar before this group (not before the first group) */}
           {groupIdx > 0 && (
             <div
@@ -98,19 +105,45 @@ export default function ThumbnailStrip({ outputs, currentIndex, onNavigate }) {
             }}
           >
             {group.items.map((output) => {
-              const globalIdx = globalIndexMap.get(output.id)
+              const isActive = output.id === currentOutputId
               return (
                 <button
                   key={output.id}
-                  ref={globalIdx === currentIndex ? activeRef : null}
-                  className={`v3-thumb ${globalIdx === currentIndex ? 'v3-thumb-active' : ''} ${output.feedback === 'up' ? 'v3-thumb-up' : output.feedback === 'down' ? 'v3-thumb-down' : ''}`}
-                  onClick={() => onNavigate(globalIdx)}
+                  ref={isActive ? activeRef : null}
+                  className={`v3-thumb ${isActive ? 'v3-thumb-active' : ''} ${winners?.some((w) => w.outputId === output.id) ? 'v3-thumb--winner' : ''}`}
+                  onClick={() => onNavigate(output)}
                 >
-                  {output.dataUrl ? (
-                    <img src={output.dataUrl} alt="" draggable={false} />
+                  {isPromptPreviewOutput(output) ? (
+                    <div className="v3-thumb-prompt-preview">
+                      <span className="v3-thumb-prompt-kicker">Prompt</span>
+                      <span className="v3-thumb-prompt-line">
+                        {(output.promptPreviewText || output.finalPromptSent || '').slice(0, 32) || 'Preview'}
+                      </span>
+                    </div>
+                  ) : getImageUrl(output) ? (
+                    <img src={getImageUrl(output)} alt="" draggable={false} />
                   ) : (
                     <div className="v3-thumb-placeholder" />
                   )}
+                  {winners?.some((w) => w.outputId === output.id) && (
+                    <span className="v3-thumb-trophy" aria-label="Winner">
+                      <svg width="7" height="7" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                    </span>
+                  )}
+                  {(() => {
+                    const rating = normalizeFeedback(output.feedback)
+                    if (rating !== null) {
+                      const ratingTone = rating <= 2 ? 'low' : rating === 3 ? 'mid' : 'high'
+                      return (
+                        <span className={`v3-thumb-rating v3-thumb-rating--${ratingTone}`}>
+                          {rating}
+                        </span>
+                      )
+                    }
+                    return null
+                  })()}
                   {(output.notesKeep?.trim() || output.notesFix?.trim()) && (
                     <span className={`v3-thumb-badge ${output.notesKeep?.trim() && output.notesFix?.trim() ? 'v3-thumb-badge-mixed' : output.notesKeep?.trim() ? 'v3-thumb-badge-up' : 'v3-thumb-badge-down'}`}>
                       {output.notesKeep?.trim() && output.notesFix?.trim() ? '\u2215' : output.notesKeep?.trim() ? '\u2713' : '\u2717'}
@@ -120,7 +153,7 @@ export default function ThumbnailStrip({ outputs, currentIndex, onNavigate }) {
               )
             })}
           </div>
-        </span>
+        </Fragment>
       ))}
     </div>
   )

@@ -6,13 +6,16 @@ function formatSize(bytes) {
   return `${(bytes / 1048576).toFixed(1)} MB`
 }
 
-/* ── Icons ── */
+/* ── Ref influence modes ── */
+export const REF_MODES = [
+  { id: 'reference', label: 'None', short: '—', description: 'Send image with your notes only' },
+  { id: 'match', label: 'Match', short: 'Match', description: 'Closely replicate this image' },
+  { id: 'style', label: 'Style', short: 'Style', description: 'Use the style and mood' },
+  { id: 'palette', label: 'Colors', short: 'Colors', description: 'Use the color palette' },
+  { id: 'inspire', label: 'Inspire', short: 'Inspire', description: 'Loose inspiration only' },
+]
 
-const BookmarkIcon = ({ size = 11 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-  </svg>
-)
+/* ── Icons ── */
 
 const CloseIcon = () => (
   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -51,6 +54,17 @@ const EyeClosedIcon = () => (
   </svg>
 )
 
+const GripIcon = () => (
+  <svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" opacity="0.4">
+    <circle cx="2" cy="2" r="1.2" />
+    <circle cx="6" cy="2" r="1.2" />
+    <circle cx="2" cy="7" r="1.2" />
+    <circle cx="6" cy="7" r="1.2" />
+    <circle cx="2" cy="12" r="1.2" />
+    <circle cx="6" cy="12" r="1.2" />
+  </svg>
+)
+
 /* ── Ref Lightbox ── */
 
 function RefLightbox({ refData, onClose }) {
@@ -72,12 +86,12 @@ function RefLightbox({ refData, onClose }) {
 
 /* ── Single ref row ── */
 
-function RefRow({ refData, onRemoveRef, onToggleRefSend, onToggleRefAnchor, onUpdateRefNotes, onOpenLightbox }) {
+function RefRow({ refData, onRemoveRef, onToggleRefSend, onUpdateRefMode, onUpdateRefNotes, onOpenLightbox, onDragStart, onDragOver, onDrop }) {
   const [notesDraft, setNotesDraft] = useState(refData.notes || '')
   const [notesFocused, setNotesFocused] = useState(false)
   const notesRef = useRef(null)
 
-  const isPinned = refData.anchor || false
+  const mode = refData.mode || 'reference'
   const isIncluded = refData.send !== false
 
   const handleNotesCommit = useCallback(() => {
@@ -85,10 +99,23 @@ function RefRow({ refData, onRemoveRef, onToggleRefSend, onToggleRefAnchor, onUp
     setNotesFocused(false)
   }, [notesDraft, refData.id, onUpdateRefNotes])
 
+  const modeInfo = REF_MODES.find((m) => m.id === mode) || REF_MODES[0]
+  const hasNotes = notesDraft.trim().length > 0
+  const showHint = mode === 'reference' && !hasNotes
+
   return (
-    <div className={`v3-ref-row ${!isIncluded ? 'v3-ref-row--excluded' : ''} ${isPinned ? 'v3-ref-row--pinned' : ''}`}>
-      {/* Row 1: thumbnail + name/size */}
+    <div
+      className={`v3-ref-row ${!isIncluded ? 'v3-ref-row--excluded' : ''} ${mode !== 'reference' ? 'v3-ref-row--moded' : ''}`}
+      draggable
+      onDragStart={(e) => onDragStart(e, refData.id)}
+      onDragOver={onDragOver}
+      onDrop={(e) => onDrop(e, refData.id)}
+    >
+      {/* Row 1: grip + thumbnail + name/size */}
       <div className="v3-ref-row-top">
+        <span className="v3-ref-grip" title="Drag to reorder">
+          <GripIcon />
+        </span>
         <button
           className="v3-ref-thumb-btn"
           onClick={() => onOpenLightbox(refData)}
@@ -104,7 +131,7 @@ function RefRow({ refData, onRemoveRef, onToggleRefSend, onToggleRefAnchor, onUp
         </div>
       </div>
 
-      {/* Row 2: action buttons */}
+      {/* Row 2: include toggle + mode selector + remove */}
       <div className="v3-ref-actions">
         <button
           className={`v3-ref-include ${isIncluded ? 'v3-ref-include--on' : 'v3-ref-include--off'}`}
@@ -114,21 +141,22 @@ function RefRow({ refData, onRemoveRef, onToggleRefSend, onToggleRefAnchor, onUp
           {isIncluded ? <EyeOpenIcon /> : <EyeClosedIcon />}
           <span>{isIncluded ? 'Include' : 'Exclude'}</span>
         </button>
-        <button
-          className={`v3-ref-pin ${isPinned ? 'v3-ref-pin--active' : ''}`}
-          onClick={() => onToggleRefAnchor(refData.id)}
-          title={isPinned ? 'Pinned — notes go first in prompt. Click to unpin.' : 'Pin — notes will go first in prompt'}
+        <select
+          className={`v3-ref-mode-select ${mode !== 'reference' ? 'v3-ref-mode-select--active' : ''}`}
+          value={mode}
+          onChange={(e) => onUpdateRefMode(refData.id, e.target.value)}
+          title={modeInfo.description}
         >
-          <BookmarkIcon size={11} />
-          <span>{isPinned ? 'Pinned' : 'Pin'}</span>
-        </button>
+          {REF_MODES.map((m) => (
+            <option key={m.id} value={m.id}>{m.label}</option>
+          ))}
+        </select>
         <button
           className="v3-ref-delete"
           onClick={() => onRemoveRef(refData.id)}
           title="Remove reference"
         >
           <CloseIcon />
-          <span>Remove</span>
         </button>
       </div>
 
@@ -147,9 +175,12 @@ function RefRow({ refData, onRemoveRef, onToggleRefSend, onToggleRefAnchor, onUp
               notesRef.current?.blur()
             }
           }}
-          placeholder="What should Gemini use from this image..."
+          placeholder={mode === 'reference' ? 'Tell Gemini what to use from this image...' : `${modeInfo.description} — add extra notes (optional)`}
           rows={notesFocused || notesDraft.length > 0 ? 2 : 1}
         />
+        {showHint && (
+          <div className="v3-ref-hint">Choose a mode or add notes to guide how this ref is used</div>
+        )}
       </div>
     </div>
   )
@@ -157,12 +188,13 @@ function RefRow({ refData, onRemoveRef, onToggleRefSend, onToggleRefAnchor, onUp
 
 /* ── Panel ── */
 
-export default function RefsPanel({ refs, onAddRefs, onRemoveRef, onToggleRefSend, onToggleRefAnchor, onUpdateRefNotes }) {
+export default function RefsPanel({ refs, onAddRefs, onRemoveRef, onToggleRefSend, onUpdateRefMode, onUpdateRefNotes, onReorderRefs }) {
   const fileInputRef = useRef(null)
   const [dragOver, setDragOver] = useState(false)
   const [lightboxRef, setLightboxRef] = useState(null)
+  const dragItemId = useRef(null)
 
-  const handleDrop = (e) => {
+  const handleFileDrop = (e) => {
     e.preventDefault()
     setDragOver(false)
 
@@ -212,28 +244,54 @@ export default function RefsPanel({ refs, onAddRefs, onRemoveRef, onToggleRefSen
     }
   }
 
+  // Drag-to-reorder handlers
+  const handleReorderDragStart = useCallback((e, id) => {
+    dragItemId.current = id
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', id) // Required for Firefox
+  }, [])
+
+  const handleReorderDragOver = useCallback((e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }, [])
+
+  const handleReorderDrop = useCallback((e, targetId) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const sourceId = dragItemId.current
+    if (!sourceId || sourceId === targetId || !onReorderRefs) return
+
+    const currentIds = refs.map((r) => r.id)
+    const sourceIdx = currentIds.indexOf(sourceId)
+    const targetIdx = currentIds.indexOf(targetId)
+    if (sourceIdx === -1 || targetIdx === -1) return
+
+    const newOrder = [...currentIds]
+    newOrder.splice(sourceIdx, 1)
+    newOrder.splice(targetIdx, 0, sourceId)
+    onReorderRefs(newOrder)
+    dragItemId.current = null
+  }, [refs, onReorderRefs])
+
   const includedCount = refs.filter((r) => r.send !== false).length
-  const pinnedCount = refs.filter((r) => r.anchor).length
   const hasRefs = refs.length > 0
 
   return (
     <div
       className={`v3-refs-panel ${dragOver ? 'v3-refs-panel--dragover' : ''}`}
-      onDrop={handleDrop}
+      onDrop={handleFileDrop}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
       onDragLeave={() => setDragOver(false)}
     >
-      {/* Header — always visible */}
-      <div className="v3-refs-header">
-        <span className="v3-refs-label">Reference Images</span>
-        {hasRefs && (
-          <span className="v3-refs-counts">
-            {includedCount} included{pinnedCount > 0 ? ` · ${pinnedCount} pinned` : ''}
-          </span>
-        )}
-      </div>
+      {/* Ref count summary */}
+      {hasRefs && (
+        <div className="v3-refs-summary">
+          {includedCount} of {refs.length} included
+        </div>
+      )}
 
-      {/* Ref list — no collapsible, always visible */}
+      {/* Ref list */}
       {hasRefs && (
         <div className="v3-refs-list">
           {refs.map((ref) => (
@@ -242,9 +300,12 @@ export default function RefsPanel({ refs, onAddRefs, onRemoveRef, onToggleRefSen
               refData={ref}
               onRemoveRef={onRemoveRef}
               onToggleRefSend={onToggleRefSend}
-              onToggleRefAnchor={onToggleRefAnchor}
+              onUpdateRefMode={onUpdateRefMode}
               onUpdateRefNotes={onUpdateRefNotes}
               onOpenLightbox={setLightboxRef}
+              onDragStart={handleReorderDragStart}
+              onDragOver={handleReorderDragOver}
+              onDrop={handleReorderDrop}
             />
           ))}
         </div>
@@ -262,7 +323,7 @@ export default function RefsPanel({ refs, onAddRefs, onRemoveRef, onToggleRefSen
         </div>
       )}
 
-      {/* Add / drop zone — single unified control */}
+      {/* Add button */}
       {hasRefs && (
         <button
           className={`v3-refs-add ${dragOver ? 'v3-refs-add--dragover' : ''}`}

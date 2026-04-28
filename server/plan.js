@@ -1,14 +1,12 @@
 /**
  * Server-side AI planning handler.
- * Calls Gemini text model with structured session/project context
+ * Calls Vertex AI text model with structured session/project context
  * to produce a useful generation plan.
  */
 
-const PLAN_MODEL = 'gemini-2.5-flash'
+import { assertVertexAIConfigured, postVertexGenerateContent } from './vertex-auth.js'
 
-function getEndpoint(model) {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
-}
+const PLAN_MODEL = 'gemini-2.5-flash'
 
 function toNullableNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -219,11 +217,12 @@ const RESPONSE_SCHEMA = {
 }
 
 export async function handlePlan(req, res) {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
+  try {
+    assertVertexAIConfigured()
+  } catch (err) {
     res.statusCode = 500
     res.setHeader('Content-Type', 'application/json')
-    res.end(JSON.stringify({ error: 'GEMINI_API_KEY not set in server environment' }))
+    res.end(JSON.stringify({ error: err.message }))
     return
   }
 
@@ -265,39 +264,30 @@ export async function handlePlan(req, res) {
   }
 
   try {
-    const endpoint = getEndpoint(planModel)
-    const startTime = Date.now()
+    const { response, durationMs } = await postVertexGenerateContent(planModel, geminiBody, { timeoutMs: 90_000 })
 
-    const geminiRes = await fetch(`${endpoint}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(geminiBody),
-    })
-
-    const durationMs = Date.now() - startTime
-
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text()
-      let message = `Gemini API error (${geminiRes.status})`
+    if (!response.ok) {
+      const errText = await response.text()
+      let message = `Vertex AI error (${response.status})`
       try {
         const parsed = JSON.parse(errText)
         if (parsed.error?.message) message = parsed.error.message
       } catch {
         // use default
       }
-      res.statusCode = geminiRes.status
+      res.statusCode = response.status
       res.setHeader('Content-Type', 'application/json')
       res.end(JSON.stringify({ error: message }))
       return
     }
 
-    const data = await geminiRes.json()
+    const data = await response.json()
     const candidate = data.candidates?.[0]
     const usage = data.usageMetadata || {}
     if (!candidate?.content?.parts?.[0]?.text) {
       res.statusCode = 502
       res.setHeader('Content-Type', 'application/json')
-      res.end(JSON.stringify({ error: 'No plan returned from Gemini' }))
+      res.end(JSON.stringify({ error: 'No plan returned from Vertex AI' }))
       return
     }
 
