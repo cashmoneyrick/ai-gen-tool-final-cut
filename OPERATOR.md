@@ -32,8 +32,18 @@ Before deciding the next attempt, check:
 
 ## Feedback Handling
 
+**Saving verbal feedback (do this first, every time):**
+When Rick gives any feedback about images — what he liked, what was wrong, what to fix — save it immediately before doing anything else:
+
+```
+POST http://localhost:5173/api/operator/feedback
+{ "notesKeep": "what was good", "notesFix": "what was wrong" }
+```
+
+This saves to the most recently generated batch. Rick doesn't specify individual images — assume feedback applies to the last batch. Confirm it saved before moving on. If the server isn't running, note the feedback explicitly so it's not lost.
+
 - Read ratings first.
-- Use written notes when they are available.
+- Use written notes when they are available (now includes verbally saved notes from above).
 - Treat winners as source-of-truth examples.
 - Treat rejected outputs as negative constraints.
 - Translate rejected outputs into explicit avoid rules for the next attempt. If the user rejected an output for being too glossy, too perfect, too glittery, too CGI, too cluttered, or the wrong color, the next attempt should directly avoid that failure.
