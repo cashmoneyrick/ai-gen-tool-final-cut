@@ -584,13 +584,35 @@ function readJSON(filePath) {
  * Generate and save a project brief.
  */
 export function generateProjectBrief(projectId) {
+  const resolvedId = projectId || storage.getActiveProject()
+  if (!resolvedId) return null
+
+  const briefPath = join(BRIEFS_DIR, `${resolvedId}.json`)
+
+  // Cheap staleness check — skip full analysis if nothing has changed since last brief.
+  // Compares output count, rated count, and winner count against cached stats.
+  const existing = readJSON(briefPath)
+  if (existing?.stats && existing.generatedAt) {
+    const sessions = storage.getAllByIndex('sessions', 'projectId', resolvedId)
+    const sessionIds = new Set(sessions.map(s => s.id))
+    const projectOutputs = storage.getAll('outputs')
+      .filter(o => sessionIds.has(o.sessionId) && !isPromptPreviewOutput(o))
+    const projectWinners = storage.getAll('winners').filter(w => sessionIds.has(w.sessionId))
+    const currentRated = projectOutputs.filter(o => o.feedback !== null && o.feedback !== undefined).length
+
+    if (
+      projectOutputs.length === existing.stats.totalOutputs &&
+      currentRated === existing.stats.totalRated &&
+      projectWinners.length === existing.stats.totalWinners
+    ) {
+      return existing // nothing changed — skip the expensive tokenization pass
+    }
+  }
+
   const analysis = analyzeProject(projectId)
   if (!analysis) return null
 
-  const briefPath = join(BRIEFS_DIR, `${analysis.projectId}.json`)
-
-  // Preserve existing manual notes
-  const existing = readJSON(briefPath)
+  // Preserve existing manual notes (existing was already read for the staleness check above)
   const manualNotes = existing?.manualNotes || { liked: [], hated: [] }
 
   // Get project record for savedColors
