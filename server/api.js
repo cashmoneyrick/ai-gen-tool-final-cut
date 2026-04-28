@@ -472,6 +472,62 @@ async function handleOperatorFeedback(req, res) {
   })
 }
 
+async function handleOperatorAnnotation(req, res) {
+  if (req.method !== 'POST') return sendError(res, 405, 'POST only')
+
+  let body
+  try {
+    body = await readBody(req)
+  } catch {
+    return sendError(res, 400, 'Invalid JSON body')
+  }
+
+  const { outputId, pass, note, category } = body
+  if (!outputId) return sendError(res, 400, 'outputId is required')
+
+  const output = storage.get('outputs', outputId)
+  if (!output) return sendError(res, 404, 'Output not found')
+
+  storage.put('outputs', {
+    ...output,
+    operatorAnnotation: {
+      pass: Boolean(pass),
+      note: String(note || ''),
+      category: String(category || 'other'),
+    },
+  })
+
+  return sendJSON(res, 200, { ok: true, outputId })
+}
+
+async function handleAnnotationCorrection(req, res) {
+  if (req.method !== 'POST') return sendError(res, 405, 'POST only')
+
+  let body
+  try {
+    body = await readBody(req)
+  } catch {
+    return sendError(res, 400, 'Invalid JSON body')
+  }
+
+  const { outputId, corrected, reason } = body
+  if (!outputId) return sendError(res, 400, 'outputId is required')
+
+  const output = storage.get('outputs', outputId)
+  if (!output) return sendError(res, 404, 'Output not found')
+
+  storage.put('outputs', {
+    ...output,
+    annotationCorrection: {
+      corrected: Boolean(corrected),
+      reason: String(reason || ''),
+      correctedAt: Date.now(),
+    },
+  })
+
+  return sendJSON(res, 200, { ok: true, outputId })
+}
+
 // --- Session end marker handler ---
 // Operator reads this to trigger auto-distillation
 
@@ -783,6 +839,12 @@ export function handleStoreAPI(req, res, next) {
   }
   if (cleanUrl === '/api/operator/feedback') {
     return handleOperatorFeedback(req, res)
+  }
+  if (cleanUrl === '/api/operator/annotation') {
+    return handleOperatorAnnotation(req, res)
+  }
+  if (cleanUrl === '/api/operator/annotation-correction') {
+    return handleAnnotationCorrection(req, res)
   }
   // Handle /api/handoff/baseline/:projectId
   const baselineMatch = cleanUrl.match(/^\/api\/handoff\/baseline\/(.+)$/)
