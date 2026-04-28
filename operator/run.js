@@ -166,6 +166,35 @@ if (ratedOutputs.length > 0 || allWinners.length > 0) {
     console.log(`[operator] Consider: asking for hex codes, reference images, or changing approach entirely.\n`)
   }
 
+  // --- Questioning pre-flight: same failure category in last 2 low-rated outputs? ---
+  const lowRatedAnnotated = learningOutputs
+    .filter(o => {
+      const r = normalizeFeedback(o.feedback)
+      return r !== null && r <= 2 && o.operatorAnnotation && !o.operatorAnnotation.pass
+    })
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, 2)
+
+  if (lowRatedAnnotated.length === 2) {
+    const [last, prev] = lowRatedAnnotated
+    if (last.operatorAnnotation.category === prev.operatorAnnotation.category) {
+      const category = last.operatorAnnotation.category
+      const questions = {
+        shape: "I've flagged nail shape twice in a row — can you send a reference image or describe the exact tip shape you want?",
+        finish: "The finish isn't landing after two tries — can you point to a winner that had it right, or describe what's missing?",
+        color: "The color isn't working after two tries — want to give me a hex code instead of a color name?",
+        technique: "The technique keeps coming out wrong — can you describe what correct looks like, or share a reference?",
+        other: "I've flagged the same issue twice and I'm guessing at this point — what specifically needs to change?",
+      }
+      console.log(`\n[operator] ⛔ SAME FAILURE TWICE (${category})`)
+      console.log(`[operator] ${questions[category] || questions.other}`)
+      console.log(`[operator] Stopping to ask rather than guessing a third time.`)
+      console.log(`[operator] Answer the question above, then run the operator again.`)
+      clearProgress()
+      process.exit(0)
+    }
+  }
+
   // --- Smart model switching suggestion ---
   if (recentScores.length >= 3) {
     const last3 = recentScores.slice(0, 3)
