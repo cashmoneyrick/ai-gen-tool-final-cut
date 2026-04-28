@@ -50,6 +50,25 @@ This saves to the most recently generated batch. Rick doesn't specify individual
 - Reuse winners and liked outputs for successful composition, lighting, realism level, color behavior, material finish, and prompt structure when those qualities are still relevant.
 - If feedback is local, make a local change. Do not reroll everything.
 
+## Image Evaluation (do this after every generation)
+
+After each operator run completes, evaluate the new images before Rick rates them:
+
+1. Read `data/last-batch.json` to get the new output IDs
+2. Read each output record to get its `imagePath`
+3. Read each image file and evaluate it against `operator/nailKnowledge.md`
+4. Check: shape correct? Finish correct? All nails consistent?
+
+Save the result for each output:
+```
+POST http://localhost:5173/api/operator/annotation
+{ "outputId": "...", "pass": true/false, "note": "one-line reason if failing", "category": "shape|finish|color|technique|other" }
+```
+
+Report findings to Rick verbally before moving to the next attempt. Passing images need no comment — only flag failures.
+
+If Rick says an annotation was wrong, acknowledge it. The correction is saved automatically via the Correct button in the review UI and feeds back into the personal standards layer over time.
+
 ## Prompt / Attempt Discipline
 
 - Be explicit about what stays locked.
