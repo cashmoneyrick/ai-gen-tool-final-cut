@@ -180,6 +180,18 @@ export default function ReviewConsole({
     }
   }, [])
 
+  const handleCorrectAnnotation = useCallback(async (outputId) => {
+    try {
+      await fetch('/api/operator/annotation-correction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outputId, corrected: false }),
+      })
+    } catch {
+      // non-fatal
+    }
+  }, [])
+
   const handleEndSession = useCallback(async () => {
     if (sessionEnded) return
     try {
@@ -215,6 +227,7 @@ export default function ReviewConsole({
   const lastStoreLabel = formatStoreLabel(liveSync?.lastStore)
   const compactStatusLabel = `${workflowSummary?.outputCount || 0} outputs`
     + (workflowSummary?.winnerCount ? ` · ${workflowSummary.winnerCount} winners` : '')
+  const projectCostLabel = projectCost !== null && projectCost > 0 ? formatCost(projectCost) : null
   const hasOutputs = orderedOutputs.length > 0
   const hasStripOutputs = orderedStripOutputs.length > 0
   const sessionDecision = useMemo(() => {
@@ -291,29 +304,6 @@ export default function ReviewConsole({
             </svg>
           </button>
         </div>
-        <div className="v3-header-status">
-          <div className={`v3-workflow-chip v3-workflow-chip--${liveTone}`}>
-            <span className="v3-workflow-dot" />
-            <span>{liveLabel}</span>
-          </div>
-          {trustSignal && (
-            <div
-              className={`v3-workflow-chip v3-workflow-chip--${trustSignal.tone === 'error' ? 'error' : 'recovered'}`}
-              title={trustSignal.detail}
-            >
-              <span>{trustSignal.label}</span>
-            </div>
-          )}
-          <div className="v3-workflow-chip">
-            <span>{compactStatusLabel}</span>
-          </div>
-          <span
-            className="v3-header-status-meta"
-            title={`${lastSyncLabel}${liveTone !== 'live' || trustSignal?.tone === 'error' ? ` · ${lastStoreLabel}` : ''}`}
-          >
-            {lastSyncLabel}
-          </span>
-        </div>
         <div className="v3-header-right">
           {onTogglePromptPreview && (
             <button
@@ -324,12 +314,6 @@ export default function ReviewConsole({
               <span className="v3-prompt-preview-toggle-kicker">Mode</span>
               <span className="v3-prompt-preview-toggle-label">Prompt Preview</span>
             </button>
-          )}
-          {projectCost !== null && projectCost > 0 && (
-            <span className="v3-session-cost" title="Project total cost">
-              {formatCost(projectCost)}
-              <span className="v3-session-cost-label">spent</span>
-            </span>
           )}
           <button
             className={`v3-end-session-btn ${sessionEnded ? 'v3-end-session-btn--done' : ''}`}
@@ -379,6 +363,7 @@ export default function ReviewConsole({
               onUpdateFeedback={onUpdateOutputFeedback}
               onUpdateFeedbackNotes={onUpdateFeedbackNotes}
               onMarkWinner={onMarkWinner}
+              onCorrectAnnotation={handleCorrectAnnotation}
               isWinner={isCurrentWinner}
               onUseAsRef={onAddRefs ? (output) => {
                 const refImgUrl = getImageUrl(output)
@@ -406,6 +391,17 @@ export default function ReviewConsole({
               onOutputSignal={handleOutputSignal}
               onUpdatePromptPreviewText={onUpdatePromptPreviewText}
               onUsePromptPreviewAsBase={onUsePromptPreviewAsBase}
+              reviewDockStatus={{
+                projectName,
+                liveTone,
+                liveLabel,
+                compactStatusLabel,
+                lastSyncLabel,
+                lastStoreLabel,
+                trustSignal,
+                projectCostLabel,
+                promptPreviewMode,
+              }}
               insightsTitle={sessionDecision ? sessionDecision.title : 'Open strategy and session context'}
               insightsMeta={sessionDecision?.pills?.slice(0, 2) || []}
               insightsContent={(

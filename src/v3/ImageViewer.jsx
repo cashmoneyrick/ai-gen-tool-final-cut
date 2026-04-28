@@ -56,6 +56,33 @@ const RATING_FACES = [
   </svg>,
 ]
 
+const REVIEW_DOCK_PLACEMENT_KEY = 'v3-review-dock-placement'
+const REVIEW_DOCK_POSITION_KEY = 'v3-review-dock-position'
+const REVIEW_DOCK_FLOAT_MARGIN = 12
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function readStoredDockPlacement() {
+  try {
+    const stored = localStorage.getItem(REVIEW_DOCK_PLACEMENT_KEY)
+    return stored === 'left' || stored === 'right' || stored === 'float' ? stored : 'right'
+  } catch {
+    return 'right'
+  }
+}
+
+function readStoredDockPosition() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(REVIEW_DOCK_POSITION_KEY) || 'null')
+    if (stored && Number.isFinite(stored.x) && Number.isFinite(stored.y)) {
+      return stored
+    }
+  } catch {}
+  return null
+}
+
 async function copyTextWithFallback(text) {
   const value = text || ''
 
@@ -148,13 +175,18 @@ export default function ImageViewer({
   onOutputSignal,
   onUpdatePromptPreviewText,
   onUsePromptPreviewAsBase,
+  reviewDockStatus,
   insightsTitle = 'Open strategy and session context',
   insightsMeta = [],
   insightsContent = null,
   rotation = 0,
+  onCorrectAnnotation,
   onRotate,
 }) {
   const containerRef = useRef(null)
+  const stageRef = useRef(null)
+  const dockRef = useRef(null)
+  const dockDragRef = useRef(null)
   const [hoverActive, setHoverActive] = useState(false)
   const [mousePos, setMousePos] = useState(null)
   const [containerRect, setContainerRect] = useState(null)
@@ -163,6 +195,8 @@ export default function ImageViewer({
   const [imageSizeMode, setImageSizeMode] = useState('fit')
   const [fullscreenOpen, setFullscreenOpen] = useState(false)
   const [insightsOpen, setInsightsOpen] = useState(false)
+  const [dockPlacement, setDockPlacement] = useState(readStoredDockPlacement)
+  const [dockPosition, setDockPosition] = useState(readStoredDockPosition)
   const [promptSectionsDraft, setPromptSectionsDraft] = useState(() =>
     normalizePromptSections(
       output?.promptPreviewSections
@@ -204,6 +238,60 @@ export default function ImageViewer({
     setZoomLevel((z) => Math.max(1.5, Math.min(8, z + (e.deltaY > 0 ? -0.4 : 0.4))))
   }, [zoomEnabled])
 
+  const getDefaultDockPosition = useCallback(() => {
+    const stageRect = stageRef.current?.getBoundingClientRect()
+    const dockRect = dockRef.current?.getBoundingClientRect()
+    const dockWidth = dockRect?.width || 248
+    const x = stageRect
+      ? Math.max(REVIEW_DOCK_FLOAT_MARGIN, stageRect.width - dockWidth - REVIEW_DOCK_FLOAT_MARGIN)
+      : REVIEW_DOCK_FLOAT_MARGIN
+    return { x, y: REVIEW_DOCK_FLOAT_MARGIN }
+  }, [])
+
+  const clampDockPosition = useCallback((position) => {
+    const stageRect = stageRef.current?.getBoundingClientRect()
+    const dockRect = dockRef.current?.getBoundingClientRect()
+    if (!stageRect || !dockRect) {
+      return position || { x: REVIEW_DOCK_FLOAT_MARGIN, y: REVIEW_DOCK_FLOAT_MARGIN }
+    }
+
+    const maxX = Math.max(REVIEW_DOCK_FLOAT_MARGIN, stageRect.width - dockRect.width - REVIEW_DOCK_FLOAT_MARGIN)
+    const maxY = Math.max(REVIEW_DOCK_FLOAT_MARGIN, stageRect.height - dockRect.height - REVIEW_DOCK_FLOAT_MARGIN)
+    const next = position || getDefaultDockPosition()
+    return {
+      x: clamp(next.x, REVIEW_DOCK_FLOAT_MARGIN, maxX),
+      y: clamp(next.y, REVIEW_DOCK_FLOAT_MARGIN, maxY),
+    }
+  }, [getDefaultDockPosition])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(REVIEW_DOCK_PLACEMENT_KEY, dockPlacement)
+    } catch {}
+  }, [dockPlacement])
+
+  useEffect(() => {
+    if (!dockPosition) return
+    try {
+      localStorage.setItem(REVIEW_DOCK_POSITION_KEY, JSON.stringify(dockPosition))
+    } catch {}
+  }, [dockPosition])
+
+  useEffect(() => {
+    if (dockPlacement !== 'float') return undefined
+
+    const syncPosition = () => {
+      setDockPosition((current) => clampDockPosition(current || getDefaultDockPosition()))
+    }
+
+    const frame = window.requestAnimationFrame(syncPosition)
+    window.addEventListener('resize', syncPosition)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('resize', syncPosition)
+    }
+  }, [clampDockPosition, dockPlacement, getDefaultDockPosition])
+
 
   // Z key toggles fullscreen, also toggle zoom with Z when not in fullscreen
   useEffect(() => {
@@ -222,6 +310,30 @@ export default function ImageViewer({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
+
+  useEffect(() => {
+    if (dockPlacement !== 'float') return undefined
+
+    const handlePointerMove = (event) => {
+      const drag = dockDragRef.current
+      if (!drag) return
+      setDockPosition(clampDockPosition({
+        x: drag.origin.x + (event.clientX - drag.start.x),
+        y: drag.origin.y + (event.clientY - drag.start.y),
+      }))
+    }
+
+    const handlePointerUp = () => {
+      dockDragRef.current = null
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+    }
+  }, [clampDockPosition, dockPlacement])
 
   // Get previous output for A/B compare
   const reviewIndex = isPromptPreview ? -1 : reviewOutputs.findIndex((item) => item.id === output?.id)
@@ -704,6 +816,24 @@ export default function ImageViewer({
     Promise.resolve(onUsePromptPreviewAsBase(output.id, promptSectionsDraft, promptDraft)).catch(() => {})
   }
 
+  const handleDockPlacementChange = (placement) => {
+    setDockPlacement(placement)
+    if (placement === 'float') {
+      window.requestAnimationFrame(() => {
+        setDockPosition((current) => clampDockPosition(current || getDefaultDockPosition()))
+      })
+    }
+  }
+
+  const handleDockDragStart = (event) => {
+    if (dockPlacement !== 'float') return
+    if (event.target.closest('button')) return
+    event.preventDefault()
+    dockDragRef.current = {
+      start: { x: event.clientX, y: event.clientY },
+      origin: dockPosition || getDefaultDockPosition(),
+    }
+  }
 
   const handleDragStart = useCallback((e) => {
     if (isPromptPreview) return
@@ -727,10 +857,19 @@ export default function ImageViewer({
     : output.feedback === 'up' ? 4
     : output.feedback === 'down' ? 2
     : null
+  const dockStyle = dockPlacement === 'float' && dockPosition
+    ? { left: `${dockPosition.x}px`, top: `${dockPosition.y}px` }
+    : undefined
+  const reviewDockTone = reviewDockStatus?.trustSignal?.tone === 'error'
+    ? 'error'
+    : reviewDockStatus?.liveTone || 'pending'
 
   return (
     <div className="v3-viewer">
-      <div className="v3-review-stage">
+      <div
+        ref={stageRef}
+        className={`v3-review-stage v3-review-stage--dock-${dockPlacement}`}
+      >
         <div className="v3-viewer-stage">
           {isPromptPreview ? (
             <div className="v3-prompt-preview-stage">
@@ -915,9 +1054,91 @@ export default function ImageViewer({
             </div>
           </div>
         ) : (
-          <div className="v3-toolbar v3-toolbar--rail">
+          <div
+            ref={dockRef}
+            className={`v3-toolbar v3-toolbar--rail ${dockPlacement === 'float' ? 'v3-toolbar--rail-floating' : ''}`}
+            style={dockStyle}
+          >
             <div className="v3-toolbar-row v3-toolbar-row--rail">
+              <div
+                className={`v3-review-dock-head ${dockPlacement === 'float' ? 'v3-review-dock-head--draggable' : ''}`}
+                onPointerDown={handleDockDragStart}
+              >
+                <div className="v3-review-dock-copy">
+                  <span className="v3-review-dock-kicker">Review Dock</span>
+                  <span className="v3-review-dock-project">{reviewDockStatus?.projectName || 'Current project'}</span>
+                </div>
+                <div className="v3-review-dock-placement" role="group" aria-label="Review dock position">
+                  {[
+                    ['left', 'Left'],
+                    ['right', 'Right'],
+                    ['float', 'Float'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      className={`v3-review-dock-placement-btn ${dockPlacement === value ? 'v3-review-dock-placement-btn--active' : ''}`}
+                      onClick={() => handleDockPlacementChange(value)}
+                      type="button"
+                      title={value === 'float' ? 'Float and drag this review dock' : `Dock review rail on the ${label.toLowerCase()}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className={`v3-review-dock-status v3-review-dock-status--${reviewDockTone}`}>
+                <div className="v3-review-dock-status-top">
+                  <span className="v3-review-dock-status-summary">{reviewDockStatus?.compactStatusLabel || 'No outputs yet'}</span>
+                  {reviewDockStatus?.projectCostLabel && (
+                    <span className="v3-review-dock-status-cost">{reviewDockStatus.projectCostLabel} spent</span>
+                  )}
+                </div>
+                <div className="v3-review-dock-status-pills">
+                  {reviewDockStatus?.liveLabel && (
+                    <span className={`v3-review-dock-pill v3-review-dock-pill--${reviewDockStatus.liveTone || 'pending'}`}>
+                      {reviewDockStatus.liveLabel}
+                    </span>
+                  )}
+                  {reviewDockStatus?.lastSyncLabel && (
+                    <span
+                      className="v3-review-dock-pill"
+                      title={reviewDockStatus.lastStoreLabel || reviewDockStatus.lastSyncLabel}
+                    >
+                      {reviewDockStatus.lastSyncLabel}
+                    </span>
+                  )}
+                  {reviewDockStatus?.trustSignal?.label && (
+                    <span
+                      className={`v3-review-dock-pill v3-review-dock-pill--${reviewDockStatus.trustSignal.tone === 'error' ? 'error' : 'recovered'}`}
+                      title={reviewDockStatus.trustSignal.detail}
+                    >
+                      {reviewDockStatus.trustSignal.label}
+                    </span>
+                  )}
+                  {reviewDockStatus?.promptPreviewMode && (
+                    <span className="v3-review-dock-pill v3-review-dock-pill--feature">Prompt Preview On</span>
+                  )}
+                </div>
+              </div>
               <div className="v3-toolbar-primary v3-toolbar-primary--rail">
+                {output.operatorAnnotation && !output.operatorAnnotation.pass && (
+                  <div className="v3-annotation-flag">
+                    <span className="v3-annotation-flag-text">
+                      ⚠ Claude flagged: {output.operatorAnnotation.note}
+                    </span>
+                    {!output.annotationCorrection ? (
+                      <button
+                        className="v3-annotation-correct-btn"
+                        onClick={() => onCorrectAnnotation?.(output.id)}
+                        title="Tell Claude this annotation was wrong"
+                      >
+                        Correct
+                      </button>
+                    ) : (
+                      <span className="v3-annotation-corrected">Noted — you said this passed</span>
+                    )}
+                  </div>
+                )}
                 {onUpdateFeedback && (
                   <div className="v3-rating-stack">
                     <div className="v3-toolbar-section-label">Rate this image</div>
