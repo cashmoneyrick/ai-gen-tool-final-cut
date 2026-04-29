@@ -931,6 +931,20 @@ export default function App() {
           onTogglePromptPreview={handleTogglePromptPreview}
           onUpdatePromptPreviewText={handleUpdatePromptPreviewText}
           onUsePromptPreviewAsBase={handleUsePromptPreviewAsBase}
+          model={model}
+          imageSize={imageSize}
+          aspectRatio={aspectRatio}
+          thinkingLevel={thinkingLevel}
+          googleSearch={googleSearch}
+          imageSearch={imageSearch}
+          imageCount={batchSize}
+          onModelChange={setModel}
+          onImageSizeChange={setImageSize}
+          onAspectRatioChange={setAspectRatio}
+          onThinkingLevelChange={setThinkingLevel}
+          onGoogleSearchChange={setGoogleSearch}
+          onImageSearchChange={setImageSearch}
+          onImageCountChange={setBatchSize}
         />
     </div>
   )

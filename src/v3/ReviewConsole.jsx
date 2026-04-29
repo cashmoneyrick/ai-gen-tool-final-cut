@@ -9,6 +9,8 @@ import { formatCost } from './costUtils'
 import { getImageUrl } from '../utils/imageUrl.js'
 import { normalizeFeedback } from '../reviewFeedback.js'
 import './ReviewConsole.css'
+import ActionBar from './ActionBar'
+import { AVAILABLE_IMAGE_MODELS } from '../modelConfig'
 
 function formatSyncTimestamp(ts) {
   if (!ts) return 'Waiting for activity'
@@ -100,6 +102,21 @@ export default function ReviewConsole({
   onTogglePromptPreview,
   onUpdatePromptPreviewText,
   onUsePromptPreviewAsBase,
+  // Generation settings
+  model,
+  imageSize,
+  aspectRatio,
+  thinkingLevel,
+  googleSearch,
+  imageSearch,
+  imageCount,
+  onModelChange,
+  onImageSizeChange,
+  onAspectRatioChange,
+  onThinkingLevelChange,
+  onGoogleSearchChange,
+  onImageSearchChange,
+  onImageCountChange,
 }) {
   const orderedOutputs = useMemo(() => outputs || [], [outputs])
   const orderedStripOutputs = useMemo(
@@ -331,6 +348,24 @@ export default function ReviewConsole({
           </div>
         </div>
       </header>
+
+      <ActionBar
+        imageCount={imageCount}
+        onImageCountChange={onImageCountChange}
+        model={model}
+        availableModels={AVAILABLE_IMAGE_MODELS}
+        imageSize={imageSize}
+        aspectRatio={aspectRatio}
+        thinkingLevel={thinkingLevel}
+        googleSearch={googleSearch}
+        imageSearch={imageSearch}
+        onModelChange={onModelChange}
+        onImageSizeChange={onImageSizeChange}
+        onAspectRatioChange={onAspectRatioChange}
+        onThinkingLevelChange={onThinkingLevelChange}
+        onGoogleSearchChange={onGoogleSearchChange}
+        onImageSearchChange={onImageSearchChange}
+      />
 
       <div className="v3-body-row">
         {/* Main content area */}
