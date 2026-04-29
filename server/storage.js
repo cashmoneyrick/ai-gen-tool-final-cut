@@ -58,7 +58,7 @@ export function imageFileExists(outputId) {
 const STORE_INDEXES = {
   projects: [],
   sessions: ['projectId'],
-  refs: ['sessionId'],
+  refs: ['sessionId', 'projectId'],
   lockedElements: ['sessionId'],
   outputs: ['sessionId'],
   winners: ['sessionId'],
