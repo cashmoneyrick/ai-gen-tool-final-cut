@@ -441,6 +441,10 @@ const refPayloads = sendingRefs.flatMap((r) => {
     return [{ base64: r.blobBase64, mimeType: r.type || 'image/png' }]
   }
   if (r.imagePath) {
+    if (r.imagePath.includes('..') || r.imagePath.startsWith('/')) {
+      console.warn(`[operator] Rejected suspicious ref imagePath: ${r.imagePath}`)
+      return []
+    }
     try {
       const absPath = fileURLToPath(new URL(`../data/${r.imagePath}`, import.meta.url))
       const buf = readFileSync(absPath)
