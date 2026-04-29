@@ -126,7 +126,7 @@ console.log(`[operator] Goal: ${project.goal || session.goal || '(none)'}`)
 const allOutputs = sessions.flatMap(s => storage.getAllByIndex('outputs', 'sessionId', s.id))
 const allWinners = sessions.flatMap(s => storage.getAllByIndex('winners', 'sessionId', s.id))
 const allLockedElements = storage.getAllByIndex('lockedElements', 'sessionId', session.id)
-const allRefs = storage.getAllByIndex('refs', 'sessionId', session.id)
+const allRefs = storage.getAllByIndex('refs', 'projectId', projectId)
 const learningOutputs = allOutputs.filter((output) => !isPromptPreviewOutput(output))
 const promptPreviewMode = promptPreviewFlag || decisionFile.promptPreview === true || session.promptPreviewMode === true
 
@@ -307,6 +307,32 @@ const activeMemories = allMemories
 const outputMap = new Map(learningOutputs.map((o) => [o.id, o]))
 const winnerMap = new Map(allWinners.map((w) => [w.id, w]))
 const lockedMap = new Map(allLockedElements.map((l) => [l.id, l]))
+
+// Auto-promote winner outputs to project refs (refType: 'winner')
+const existingRefOutputIds = new Set(allRefs.filter(r => r.sourceOutputId).map(r => r.sourceOutputId))
+const winnerOutputsForRef = allWinners
+  .map(w => outputMap.get(w.outputId || w.id))
+  .filter(o => o && o.imagePath && !existingRefOutputIds.has(o.id))
+
+for (const output of winnerOutputsForRef) {
+  const newRef = {
+    id: `ref-winner-${output.id}`,
+    projectId,
+    sessionId: session.id,
+    sourceOutputId: output.id,
+    refType: 'winner',
+    imagePath: output.imagePath,
+    name: `Winner ${output.displayId || output.id.slice(0, 8)}`,
+    send: false,
+    createdAt: Date.now(),
+  }
+  storage.put('refs', newRef)
+  allRefs.push(newRef)
+}
+
+if (winnerOutputsForRef.length > 0) {
+  console.log(`[operator] Auto-promoted ${winnerOutputsForRef.length} winner(s) to project refs`)
+}
 
 const orderedOutputs = (project.outputIds || session.outputIds || []).map((id) => outputMap.get(id)).filter(Boolean)
 const orderedWinners = (project.winnerIds || session.winnerIds || []).map((id) => winnerMap.get(id)).filter(Boolean)
