@@ -149,16 +149,13 @@ export function analyzeProject(projectId) {
   const project = storage.get('projects', resolvedId)
   if (!project) return null
 
-  const sessions = storage.getAllByIndex('sessions', 'projectId', resolvedId)
-  const sessionIds = new Set(sessions.map(s => s.id))
-
-  // Read all outputs ONCE, filter to this project's sessions
+  // Read all outputs ONCE, filter to this project directly (outputs carry projectId)
   const allOutputs = storage.getAll('outputs')
-  const projectOutputs = allOutputs.filter((o) => sessionIds.has(o.sessionId) && !isPromptPreviewOutput(o))
+  const projectOutputs = allOutputs.filter((o) => o.projectId === resolvedId && !isPromptPreviewOutput(o))
 
-  // Read all winners for this project's sessions
+  // Read all winners for this project directly
   const allWinners = storage.getAll('winners')
-  const projectWinners = allWinners.filter(w => sessionIds.has(w.sessionId))
+  const projectWinners = allWinners.filter(w => w.projectId === resolvedId)
   const winnerOutputIds = new Set(projectWinners.map(w => w.outputId || w.id))
 
   // Separate rated outputs
@@ -322,7 +319,7 @@ export function analyzeProject(projectId) {
     : null
 
   const category = normalizeCategory(
-    project.category || inferProjectCategory(project, sessions, projectOutputs)
+    project.category || inferProjectCategory(project, [], projectOutputs)
   )
 
   const personalStandards = buildPersonalStandards(projectOutputs, winnerOutputIds)
