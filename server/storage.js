@@ -153,7 +153,7 @@ export function put(storeName, record) {
 
   // Sessions: union-merge array ID fields so a stale browser write never evicts
   // operator-written IDs. outputIds/winnerIds/refIds/lockedElementIds can only grow.
-  if (storeName === 'sessions' && idx >= 0) {
+  if ((storeName === 'sessions' || storeName === 'projects') && idx >= 0) {
     const existing = records[idx]
     const arrayFields = ['outputIds', 'winnerIds', 'refIds', 'lockedElementIds']
     let merged = { ...record }
