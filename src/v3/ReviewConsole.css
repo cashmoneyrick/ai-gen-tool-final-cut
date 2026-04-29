@@ -6378,77 +6378,77 @@
 
 /* ── Collection Progress ─────────────────────────────────────────── */
 
-.v3-cp {
+.v3-cprog {
   padding: 10px 0 6px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(128,128,128,0.15);
   margin-bottom: 8px;
 }
 
-.v3-cp-row {
+.v3-cprog-row {
   display: flex;
   align-items: baseline;
   gap: 8px;
   margin-bottom: 6px;
 }
 
-.v3-cp-title {
+.v3-cprog-title {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.35);
+  color: var(--v3-text-muted);
   flex-shrink: 0;
 }
 
-.v3-cp-counts {
+.v3-cprog-counts {
   font-size: 11px;
-  color: rgba(255,255,255,0.55);
+  color: var(--v3-text-secondary);
 }
 
-.v3-cp-bars {
+.v3-cprog-bars {
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.v3-cp-bar-row {
+.v3-cprog-bar-row {
   display: flex;
   align-items: center;
   gap: 5px;
 }
 
-.v3-cp-bar-label {
+.v3-cprog-bar-label {
   font-size: 10px;
-  color: rgba(255,255,255,0.35);
+  color: var(--v3-text-muted);
   width: 8px;
   text-align: right;
   flex-shrink: 0;
 }
 
-.v3-cp-bar-track {
+.v3-cprog-bar-track {
   flex: 1;
   height: 4px;
-  background: rgba(255,255,255,0.07);
+  background: rgba(128,128,128,0.15);
   border-radius: 2px;
   overflow: hidden;
 }
 
-.v3-cp-bar-fill {
+.v3-cprog-bar-fill {
   height: 100%;
   border-radius: 2px;
-  background: rgba(255,255,255,0.2);
+  background: rgba(128,128,128,0.3);
   transition: width 0.2s ease;
 }
 
-.v3-cp-bar-fill[data-rating="5"] { background: #5b8c5a; }
-.v3-cp-bar-fill[data-rating="4"] { background: rgba(91,140,90,0.6); }
-.v3-cp-bar-fill[data-rating="3"] { background: rgba(255,255,255,0.25); }
-.v3-cp-bar-fill[data-rating="2"] { background: rgba(180,80,60,0.5); }
-.v3-cp-bar-fill[data-rating="1"] { background: rgba(180,60,60,0.7); }
+.v3-cprog-bar-fill[data-rating="5"] { background: #5b8c5a; }
+.v3-cprog-bar-fill[data-rating="4"] { background: rgba(91,140,90,0.6); }
+.v3-cprog-bar-fill[data-rating="3"] { background: rgba(128,128,128,0.3); }
+.v3-cprog-bar-fill[data-rating="2"] { background: rgba(180,80,60,0.5); }
+.v3-cprog-bar-fill[data-rating="1"] { background: rgba(180,60,60,0.7); }
 
-.v3-cp-bar-count {
+.v3-cprog-bar-count {
   font-size: 10px;
-  color: rgba(255,255,255,0.3);
+  color: var(--v3-text-muted);
   width: 14px;
   text-align: left;
   flex-shrink: 0;

@@ -22,28 +22,28 @@ export default function CollectionProgress({ project, outputs, winners }) {
   const maxCount = Math.max(...stats.ratingCounts, 1)
 
   return (
-    <div className="v3-cp">
-      <div className="v3-cp-row">
-        <span className="v3-cp-title">Collection</span>
-        <span className="v3-cp-counts">
+    <div className="v3-cprog">
+      <div className="v3-cprog-row">
+        <span className="v3-cprog-title">Collection</span>
+        <span className="v3-cprog-counts">
           {totalOutputs} outputs
           {totalWinners > 0 && ` · ${totalWinners} winner${totalWinners !== 1 ? 's' : ''}`}
           {stats.ratedCount > 0 && ` · ${stats.ratedCount} rated`}
         </span>
       </div>
       {stats.ratedCount > 0 && (
-        <div className="v3-cp-bars">
+        <div className="v3-cprog-bars">
           {stats.ratingCounts.map((count, i) => (
-            <div key={i} className="v3-cp-bar-row">
-              <span className="v3-cp-bar-label">{i + 1}</span>
-              <div className="v3-cp-bar-track">
+            <div key={i} className="v3-cprog-bar-row">
+              <span className="v3-cprog-bar-label">{i + 1}</span>
+              <div className="v3-cprog-bar-track">
                 <div
-                  className="v3-cp-bar-fill"
+                  className="v3-cprog-bar-fill"
                   style={{ width: `${Math.round((count / maxCount) * 100)}%` }}
                   data-rating={i + 1}
                 />
               </div>
-              <span className="v3-cp-bar-count">{count || ''}</span>
+              <span className="v3-cprog-bar-count">{count || ''}</span>
             </div>
           ))}
         </div>
