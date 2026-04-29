@@ -6,6 +6,13 @@ function formatSize(bytes) {
   return `${(bytes / 1048576).toFixed(1)} MB`
 }
 
+/* ── Ref type badge metadata ── */
+const REF_TYPE_LABELS = {
+  winner:    { label: '★ Winner',   color: '#c8a84b' },
+  'on-hand': { label: '📷 On-hand', color: '#5b8c5a' },
+  general:   { label: 'Ref',        color: '#666' },
+}
+
 /* ── Ref influence modes ── */
 export const REF_MODES = [
   { id: 'reference', label: 'None', short: '—', description: 'Send image with your notes only' },
@@ -126,6 +133,18 @@ function RefRow({ refData, onRemoveRef, onToggleRefSend, onUpdateRefMode, onUpda
         <div className="v3-ref-details">
           <span className="v3-ref-name" title={refData.name}>{refData.name}</span>
           <span className="v3-ref-meta">
+            {refData.refType && refData.refType !== 'general' && REF_TYPE_LABELS[refData.refType] && (
+              <span style={{
+                fontSize: '9px',
+                fontWeight: 600,
+                letterSpacing: '0.03em',
+                color: REF_TYPE_LABELS[refData.refType].color,
+                textTransform: 'uppercase',
+                marginRight: 4,
+              }}>
+                {REF_TYPE_LABELS[refData.refType].label}
+              </span>
+            )}
             <span className="v3-ref-size">{formatSize(refData.size)}</span>
           </span>
         </div>
@@ -188,7 +207,7 @@ function RefRow({ refData, onRemoveRef, onToggleRefSend, onUpdateRefMode, onUpda
 
 /* ── Panel ── */
 
-export default function RefsPanel({ refs, onAddRefs, onRemoveRef, onToggleRefSend, onUpdateRefMode, onUpdateRefNotes, onReorderRefs }) {
+export default function RefsPanel({ refs, onAddRefs, onRemoveRef, onToggleRefSend, onUpdateRefMode, onUpdateRefNotes, onReorderRefs, onAddOnHandRefs }) {
   const fileInputRef = useRef(null)
   const [dragOver, setDragOver] = useState(false)
   const [lightboxRef, setLightboxRef] = useState(null)
@@ -332,6 +351,26 @@ export default function RefsPanel({ refs, onAddRefs, onRemoveRef, onToggleRefSen
           <PlusIcon />
           <span>{dragOver ? 'Drop to add' : 'Add or drop image'}</span>
         </button>
+      )}
+
+      {/* On-hand photo upload */}
+      {onAddOnHandRefs && (
+        <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#5b8c5a', marginTop: 6, padding: '0 2px' }}>
+          <PlusIcon />
+          Add on-hand photo
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              if (e.target.files?.length) {
+                onAddOnHandRefs(e.target.files)
+                e.target.value = ''
+              }
+            }}
+          />
+        </label>
       )}
 
       <input

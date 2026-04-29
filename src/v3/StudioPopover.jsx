@@ -334,6 +334,7 @@ export default function StudioPopover({
   activeProjectId,
   refs,
   onAddRefs,
+  onAddOnHandRefs,
   onRemoveRef,
   onToggleRefSend,
   onUpdateRefMode,
@@ -436,6 +437,7 @@ export default function StudioPopover({
             <RefsPanel
               refs={refs}
               onAddRefs={onAddRefs}
+              onAddOnHandRefs={onAddOnHandRefs}
               onRemoveRef={onRemoveRef}
               onToggleRefSend={onToggleRefSend}
               onUpdateRefMode={onUpdateRefMode}

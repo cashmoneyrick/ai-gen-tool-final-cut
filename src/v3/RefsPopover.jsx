@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import RefsPanel from './RefsPanel'
 
-export default function RefsPopover({ open, onClose, anchorRef, refs, onAddRefs, onRemoveRef, onToggleRefSend, onUpdateRefMode, onReorderRefs, onUpdateRefNotes }) {
+export default function RefsPopover({ open, onClose, anchorRef, refs, onAddRefs, onAddOnHandRefs, onRemoveRef, onToggleRefSend, onUpdateRefMode, onReorderRefs, onUpdateRefNotes }) {
   const popRef = useRef(null)
 
   // Position above the anchor button
@@ -38,6 +38,7 @@ export default function RefsPopover({ open, onClose, anchorRef, refs, onAddRefs,
         <RefsPanel
           refs={refs}
           onAddRefs={onAddRefs}
+          onAddOnHandRefs={onAddOnHandRefs}
           onRemoveRef={onRemoveRef}
           onToggleRefSend={onToggleRefSend}
           onUpdateRefMode={onUpdateRefMode}

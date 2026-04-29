@@ -578,6 +578,34 @@ export default function App() {
     if (validRefs.length > 0) setRefs((prev) => [...prev, ...validRefs])
   }, [activeSessionId, activeProjectId])
 
+  const handleAddOnHandRefs = useCallback(async (files) => {
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'))
+    for (const file of imageFiles) {
+      const url = URL.createObjectURL(file)
+      const ref = {
+        id: createId(),
+        file,
+        blob: file,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        previewUrl: url,
+        refType: 'on-hand',
+        send: true,
+        createdAt: Date.now(),
+      }
+      if (activeSessionId) {
+        try {
+          await persist.saveRef(activeSessionId, ref, activeProjectId)
+        } catch {
+          URL.revokeObjectURL(url)
+          continue
+        }
+      }
+      setRefs(prev => [...prev, ref])
+    }
+  }, [activeSessionId, activeProjectId])
+
   const handleUseOutputAsRef = useCallback(async (output) => {
     if (!activeSessionId || !activeProjectId) return
     const ref = {
@@ -858,6 +886,7 @@ export default function App() {
           onOpenOutput={handleOpenOutput}
           refs={refs}
           onAddRefs={handleAddRefs}
+          onAddOnHandRefs={handleAddOnHandRefs}
           onUseAsRef={handleUseOutputAsRef}
           onRemoveRef={handleRemoveRef}
           onToggleRefSend={handleToggleRefSend}
