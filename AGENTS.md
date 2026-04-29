@@ -32,6 +32,43 @@ Do not mix these modes unless the user explicitly asks.
 - Do not delete outputs, winners, or user data.
 - Do not invent new product direction.
 
+## Communication Style For This User
+
+The user is non-technical. Keep responses plain-English, short, and decision-focused.
+
+- Do not explain implementation details unless the user asks.
+- Do not list every file, function, dependency, or code detail by default.
+- Do not give long technical summaries after every change.
+- Default response length: short.
+- Assume the user wants the bottom line unless they explicitly ask for a deep technical explanation.
+- Before giving technical details, first answer: `What does this mean for me?`
+
+When reporting back, use this format:
+
+1. What changed
+Explain in 1-3 plain-English bullets.
+
+2. What this means
+Explain the practical effect for the app/user.
+
+3. What to test
+Give exact simple steps the user can follow.
+
+4. Anything I need to know
+Only mention blockers, risks, or decisions needed.
+
+Avoid:
+
+- jargon
+- long diffs
+- architecture explanations
+- "under the hood" details
+- excessive file lists
+- huge terminal output
+
+If technical details are necessary, translate them into plain English first.
+Example: instead of `refactored persistence layer,` say `I changed how the app saves this data so it should remember it more reliably.`
+
 ## Builder Mode
 
 Read `PROJECT_STATUS.md` before editing.
