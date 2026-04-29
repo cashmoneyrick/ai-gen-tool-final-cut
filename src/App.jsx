@@ -148,6 +148,11 @@ export default function App() {
   const outputsRef = useRef([])
 
   const [batchSize, setBatchSize] = useState(1)
+  const [aspectRatio, setAspectRatio] = useState('1:1')
+  const [imageSize, setImageSize] = useState('1K')
+  const [thinkingLevel, setThinkingLevel] = useState('minimal')
+  const [googleSearch, setGoogleSearch] = useState(false)
+  const [imageSearch, setImageSearch] = useState(false)
   const [outputs, setOutputs] = useState([])
   const [projectOutputCatalog, setProjectOutputCatalog] = useState([])
   const [sitewideOutputCatalog, setSitewideOutputCatalog] = useState([])
@@ -189,6 +194,11 @@ export default function App() {
     setPromptPreviewMode(state.promptPreviewMode || false)
     setModel(resolveImageModel(state.model))
     setBatchSize(state.batchSize || 1)
+    setAspectRatio(state.aspectRatio || '1:1')
+    setImageSize(state.imageSize || '1K')
+    setThinkingLevel(state.thinkingLevel || 'minimal')
+    setGoogleSearch(state.googleSearch ?? false)
+    setImageSearch(state.imageSearch ?? false)
     setRefs(state.refs)
     setLockedElements(state.lockedElements)
     setOutputs(state.outputs)
@@ -223,8 +233,13 @@ export default function App() {
       promptPreviewMode,
       model,
       batchSize,
+      aspectRatio,
+      imageSize,
+      thinkingLevel,
+      googleSearch,
+      imageSearch,
     })
-  }, [activeSessionId, goal, buckets, assembled, assembledDirty, promptPreviewMode, model, batchSize])
+  }, [activeSessionId, goal, buckets, assembled, assembledDirty, promptPreviewMode, model, batchSize, aspectRatio, imageSize, thinkingLevel, googleSearch, imageSearch])
 
   const loadProjectIntoState = useCallback(async (projectId, { setAsActive = false, nextProjects = null } = {}) => {
     const requestId = ++loadRequestRef.current
@@ -302,6 +317,11 @@ export default function App() {
         promptPreviewMode,
         model,
         batchSize,
+        aspectRatio,
+        imageSize,
+        thinkingLevel,
+        googleSearch,
+        imageSearch,
       })
       pendingSessionSaveTimer = null
     }, 500)
@@ -312,7 +332,7 @@ export default function App() {
         pendingSessionSaveTimer = null
       }
     }
-  }, [hydrated, activeSessionId, goal, buckets, assembled, assembledDirty, promptPreviewMode, model, batchSize])
+  }, [hydrated, activeSessionId, goal, buckets, assembled, assembledDirty, promptPreviewMode, model, batchSize, aspectRatio, imageSize, thinkingLevel, googleSearch, imageSearch])
 
   // Save ref ordering
   useEffect(() => {

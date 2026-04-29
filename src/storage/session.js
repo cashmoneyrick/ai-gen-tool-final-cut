@@ -344,6 +344,11 @@ export async function loadProjectState(projectId) {
     assembledDirty: project?.assembledPromptDirty ?? session.assembledPromptDirty ?? false,
     model: project?.model ?? session.model ?? DEFAULT_IMAGE_MODEL,
     batchSize: project?.batchSize ?? session.batchSize ?? 1,
+    aspectRatio: project?.aspectRatio ?? session.aspectRatio ?? '1:1',
+    imageSize: project?.imageSize ?? session.imageSize ?? '1K',
+    thinkingLevel: project?.thinkingLevel ?? session.thinkingLevel ?? 'minimal',
+    googleSearch: project?.googleSearch ?? session.googleSearch ?? false,
+    imageSearch: project?.imageSearch ?? session.imageSearch ?? false,
     promptPreviewMode: project?.promptPreviewMode ?? session.promptPreviewMode ?? false,
     refs: hydratedRefs,
     lockedElements: orderedLocked.map((el) => ({
