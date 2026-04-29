@@ -11,6 +11,7 @@ import { normalizeFeedback } from '../reviewFeedback.js'
 import './ReviewConsole.css'
 import ActionBar from './ActionBar'
 import { AVAILABLE_IMAGE_MODELS } from '../modelConfig'
+import CollectionProgress from './CollectionProgress'
 
 function formatSyncTimestamp(ts) {
   if (!ts) return 'Waiting for activity'
@@ -442,6 +443,11 @@ export default function ReviewConsole({
               insightsMeta={sessionDecision?.pills?.slice(0, 2) || []}
               insightsContent={(
                 <>
+                  <CollectionProgress
+                    project={project}
+                    outputs={reviewableOutputs}
+                    winners={winners}
+                  />
                   {sessionDecision && (
                     <div className={`v3-session-decision v3-session-decision--${sessionDecision.tone}`}>
                       <div className="v3-session-decision-copy">
