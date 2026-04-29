@@ -69,6 +69,22 @@ export async function createProject(name) {
     archived: false,
     notes: '',
     defaultModel: null,
+    // Collection-level fields (also on session for backward compat)
+    goal: '',
+    buckets: { ...EMPTY_BUCKETS },
+    assembledPrompt: '',
+    assembledPromptDirty: false,
+    roughNotes: '',
+    lockedElementIds: [],
+    refIds: [],
+    outputIds: [],
+    winnerIds: [],
+    model: DEFAULT_IMAGE_MODEL,
+    batchSize: 1,
+    planStatus: 'idle',
+    approvedPlan: null,
+    promptPreviewMode: false,
+    _sessionMigrated: true,
   }
 
   const session = {
@@ -308,19 +324,22 @@ export async function loadProjectState(projectId) {
     activeInProject: activeSharedIds.has(d.id),
   }))
 
+  // Load project record as primary source of truth for collection-level fields
+  const project = await db.get('projects', projectId)
+
   return {
     sessionId,
-    goal: session.goal || '',
-    goalDirtyAfterApproval: session.goalDirtyAfterApproval || false,
-    plan: session.approvedPlan || null,
-    planStatus: session.planStatus || 'idle',
-    buckets: session.buckets || { ...EMPTY_BUCKETS },
-    assembled: session.assembledPrompt || '',
-      assembledDirty: session.assembledPromptDirty || false,
-      model: session.model || DEFAULT_IMAGE_MODEL,
-      batchSize: session.batchSize || 1,
-      promptPreviewMode: session.promptPreviewMode || false,
-      refs: hydratedRefs,
+    goal: project?.goal ?? session.goal ?? '',
+    goalDirtyAfterApproval: project?.goalDirtyAfterApproval ?? session.goalDirtyAfterApproval ?? false,
+    plan: project?.approvedPlan ?? session.approvedPlan ?? null,
+    planStatus: project?.planStatus ?? session.planStatus ?? 'idle',
+    buckets: project?.buckets ?? session.buckets ?? { ...EMPTY_BUCKETS },
+    assembled: project?.assembledPrompt ?? session.assembledPrompt ?? '',
+    assembledDirty: project?.assembledPromptDirty ?? session.assembledPromptDirty ?? false,
+    model: project?.model ?? session.model ?? DEFAULT_IMAGE_MODEL,
+    batchSize: project?.batchSize ?? session.batchSize ?? 1,
+    promptPreviewMode: project?.promptPreviewMode ?? session.promptPreviewMode ?? false,
+    refs: hydratedRefs,
     lockedElements: orderedLocked.map((el) => ({
       id: el.id,
       text: el.text,
@@ -343,14 +362,19 @@ export async function loadProjectState(projectId) {
 // --- Save session fields ---
 
 export async function saveSessionFields(sessionId, updates) {
+  // Write to session for backward compat
   const session = await db.get('sessions', sessionId)
-  if (!session) return
-  await db.put('sessions', { ...session, ...updates, updatedAt: Date.now() })
+  if (session) {
+    await db.put('sessions', { ...session, ...updates, updatedAt: Date.now() })
+  }
 
-  // Also touch the project's updatedAt
-  const project = await db.get('projects', session.projectId)
-  if (project) {
-    await db.put('projects', { ...project, updatedAt: Date.now() })
+  // Write to project (project is now primary data unit)
+  const projectId = session?.projectId
+  if (projectId) {
+    const project = await db.get('projects', projectId)
+    if (project) {
+      await db.put('projects', { ...project, ...updates, updatedAt: Date.now() })
+    }
   }
 }
 
@@ -425,20 +449,28 @@ export async function saveOutput(projectId, sessionId, output) {
 }
 
 export async function updateOutputIds(sessionId, ids) {
-  // Union-merge with disk state to prevent clobbering operator-written IDs.
-  // The operator prepends new output IDs directly to disk. If the browser fires
-  // this function before live-sync has loaded those new IDs into React state,
-  // a plain replace would wipe them. Instead: preserve any IDs on disk that the
-  // browser doesn't know about yet, placing them at the front (newest first).
+  // Update session (backward compat) with union-merge
   const session = await db.get('sessions', sessionId)
-  if (!session) return
-  const diskIds = session.outputIds || []
-  const browserSet = new Set(ids)
-  const operatorOnlyIds = diskIds.filter((id) => !browserSet.has(id))
-  const merged = [...operatorOnlyIds, ...ids]
-  await db.put('sessions', { ...session, outputIds: merged, updatedAt: Date.now() })
-  const project = await db.get('projects', session.projectId)
-  if (project) await db.put('projects', { ...project, updatedAt: Date.now() })
+  if (session) {
+    const diskIds = session.outputIds || []
+    const browserSet = new Set(ids)
+    const operatorOnlyIds = diskIds.filter((id) => !browserSet.has(id))
+    const merged = [...operatorOnlyIds, ...ids]
+    await db.put('sessions', { ...session, outputIds: merged, updatedAt: Date.now() })
+  }
+
+  // Update project (primary data unit) with same union-merge logic
+  const projectId = session?.projectId
+  if (projectId) {
+    const project = await db.get('projects', projectId)
+    if (project) {
+      const diskIds = project.outputIds || []
+      const browserSet = new Set(ids)
+      const operatorOnlyIds = diskIds.filter((id) => !browserSet.has(id))
+      const merged = [...operatorOnlyIds, ...ids]
+      await db.put('projects', { ...project, outputIds: merged, updatedAt: Date.now() })
+    }
+  }
 }
 
 // --- Winners ---
