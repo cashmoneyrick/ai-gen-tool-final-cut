@@ -117,7 +117,7 @@ if (!session) {
 writeProgress('context', `Loading project "${project.name}"`)
 console.log(`[operator] Project: "${project.name}" (${projectId})`)
 console.log(`[operator] Session: ${session.id} (${sessions.length} total session${sessions.length !== 1 ? 's' : ''} for this project)`)
-console.log(`[operator] Goal: ${session.goal || '(none)'}`)
+console.log(`[operator] Goal: ${project.goal || session.goal || '(none)'}`)
 
 // --- Load session entities ---
 // Outputs and winners span ALL sessions — historical data should be visible across the full project
@@ -308,8 +308,8 @@ const outputMap = new Map(learningOutputs.map((o) => [o.id, o]))
 const winnerMap = new Map(allWinners.map((w) => [w.id, w]))
 const lockedMap = new Map(allLockedElements.map((l) => [l.id, l]))
 
-const orderedOutputs = (session.outputIds || []).map((id) => outputMap.get(id)).filter(Boolean)
-const orderedWinners = (session.winnerIds || []).map((id) => winnerMap.get(id)).filter(Boolean)
+const orderedOutputs = (project.outputIds || session.outputIds || []).map((id) => outputMap.get(id)).filter(Boolean)
+const orderedWinners = (project.winnerIds || session.winnerIds || []).map((id) => winnerMap.get(id)).filter(Boolean)
 const orderedLocked = (session.lockedElementIds || []).map((id) => lockedMap.get(id)).filter(Boolean)
 
 // Refs marked for sending
@@ -544,7 +544,14 @@ if (promptPreviewMode) {
     updatedAt: Date.now(),
   }
   storage.put('sessions', updatedSession)
-  storage.put('projects', { ...project, updatedAt: Date.now() })
+
+  const freshProject = storage.get('projects', projectId) || project
+  const currentProjectOutputIds = freshProject.outputIds || []
+  storage.put('projects', {
+    ...freshProject,
+    outputIds: [outputId, ...currentProjectOutputIds.filter(id => id !== outputId)],
+    updatedAt: Date.now(),
+  })
 
   console.log(`[operator] Prompt Preview mode is on — saved assembled prompt instead of generating an image.`)
   console.log(`[operator] Preview output: ${outputId}`)
@@ -730,8 +737,11 @@ try {
   }
   storage.put('sessions', updatedSession)
 
-  // Also touch project updatedAt
-  storage.put('projects', { ...project, updatedAt: Date.now() })
+  // Write outputIds to project (project is now primary data unit)
+  const freshProject = storage.get('projects', projectId) || project
+  const currentProjectOutputIds = freshProject.outputIds || []
+  const mergedProjectOutputIds = [...newOutputIds, ...currentProjectOutputIds.filter(id => !newOutputIds.includes(id))]
+  storage.put('projects', { ...freshProject, outputIds: mergedProjectOutputIds, updatedAt: Date.now() })
 
   // --- Write last-batch.json so verbal feedback can be saved to these outputs ---
   const lastBatchPath = fileURLToPath(new URL('../data/last-batch.json', import.meta.url))
