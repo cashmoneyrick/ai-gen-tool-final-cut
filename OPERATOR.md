@@ -69,6 +69,19 @@ Report findings to Rick verbally before moving to the next attempt. Passing imag
 
 If Rick says an annotation was wrong, acknowledge it. The correction is saved automatically via the Correct button in the review UI and feeds back into the personal standards layer over time.
 
+## Winner Refs
+
+After every operator run, winner outputs are automatically added as project refs with `send: false`.
+
+To use a winner image as a visual ref for the next generation:
+1. Open the refs panel (refs icon in the review UI)
+2. Find the winner ref — it shows a **★ Winner** badge
+3. Toggle it to "Include" (eye icon)
+
+The operator will then send the actual winner image to Gemini alongside the prompt.
+
+On-hand photos (📷 On-hand badge) are uploaded directly from device and always default to `send: true` — they represent the real-world nail look Rick is trying to match.
+
 ## Prompt / Attempt Discipline
 
 - Be explicit about what stays locked.
