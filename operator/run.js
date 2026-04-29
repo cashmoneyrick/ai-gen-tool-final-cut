@@ -415,23 +415,22 @@ try {
 }
 
 // --- Resolve model ---
-// Precedence: CLI flag > decision file > operator defaults
-
+// Precedence: CLI flag > decision file > project record > operator defaults
 const modelOverride = getArg('model') || decisionFile.model || null
-const model = resolveImageModel(modelOverride || OPERATOR_DEFAULTS.model)
+const model = resolveImageModel(modelOverride || project.model || OPERATOR_DEFAULTS.model)
 
 // --- Resolve batch size ---
-// Precedence: decision file > operator defaults
-const batchSize = parseInt(getArg('batch') || decisionFile.batchSize || OPERATOR_DEFAULTS.batchSize, 10)
+// Precedence: CLI flag > decision file > project record > operator defaults
+const batchSize = parseInt(getArg('batch') || decisionFile.batchSize || project.batchSize || OPERATOR_DEFAULTS.batchSize, 10)
 
 // --- Resolve gen options ---
-// Precedence: decision file > operator defaults
+// Precedence: decision file > project record > operator defaults
 const genOptions = {
-  imageSize: decisionFile.imageSize || OPERATOR_DEFAULTS.imageSize,
-  aspectRatio: decisionFile.aspectRatio || OPERATOR_DEFAULTS.aspectRatio,
-  thinkingLevel: decisionFile.thinkingLevel || OPERATOR_DEFAULTS.thinkingLevel,
-  googleSearch: decisionFile.googleSearch ?? OPERATOR_DEFAULTS.googleSearch,
-  imageSearch: decisionFile.imageSearch ?? OPERATOR_DEFAULTS.imageSearch,
+  imageSize: decisionFile.imageSize || project.imageSize || OPERATOR_DEFAULTS.imageSize,
+  aspectRatio: decisionFile.aspectRatio || project.aspectRatio || OPERATOR_DEFAULTS.aspectRatio,
+  thinkingLevel: decisionFile.thinkingLevel || project.thinkingLevel || OPERATOR_DEFAULTS.thinkingLevel,
+  googleSearch: decisionFile.googleSearch ?? project.googleSearch ?? OPERATOR_DEFAULTS.googleSearch,
+  imageSearch: decisionFile.imageSearch ?? project.imageSearch ?? OPERATOR_DEFAULTS.imageSearch,
 }
 
 // --- Prepare refs ---
