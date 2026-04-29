@@ -563,7 +563,7 @@ export default function App() {
       }
       if (activeSessionId) {
         try {
-          await persist.saveRef(activeSessionId, ref)
+          await persist.saveRef(activeSessionId, { ...ref, refType: ref.refType || 'general' }, activeProjectId)
         } catch (error) {
           URL.revokeObjectURL(url)
           errors.push(`${file.name}: failed to save in the current session`)
@@ -576,7 +576,34 @@ export default function App() {
 
     if (errors.length > 0) alert(`Some images were rejected:\n\n${errors.join('\n')}`)
     if (validRefs.length > 0) setRefs((prev) => [...prev, ...validRefs])
-  }, [activeSessionId])
+  }, [activeSessionId, activeProjectId])
+
+  const handleUseOutputAsRef = useCallback(async (output) => {
+    if (!activeSessionId || !activeProjectId) return
+    const ref = {
+      id: `ref-winner-${output.id}`,
+      name: `Winner ${output.displayId || output.id.slice(0, 8)}`,
+      refType: 'winner',
+      sourceOutputId: output.id,
+      imagePath: output.imagePath,
+      send: false,
+      createdAt: Date.now(),
+      type: output.mimeType || 'image/jpeg',
+      size: 0,
+    }
+    try {
+      await persist.saveRef(activeSessionId, ref, activeProjectId)
+      setRefs((prev) => {
+        if (prev.some(r => r.sourceOutputId === output.id)) return prev
+        const previewUrl = output.imagePath
+          ? `/api/images/${output.imagePath.split('/').pop()}`
+          : null
+        return [...prev, { ...ref, previewUrl }]
+      })
+    } catch (err) {
+      console.warn('[refs] failed to save winner ref', err)
+    }
+  }, [activeSessionId, activeProjectId])
 
   const handleToggleRefSend = useCallback((id) => {
     setRefs((prev) =>
@@ -831,6 +858,7 @@ export default function App() {
           onOpenOutput={handleOpenOutput}
           refs={refs}
           onAddRefs={handleAddRefs}
+          onUseAsRef={handleUseOutputAsRef}
           onRemoveRef={handleRemoveRef}
           onToggleRefSend={handleToggleRefSend}
           onUpdateRefMode={handleUpdateRefMode}

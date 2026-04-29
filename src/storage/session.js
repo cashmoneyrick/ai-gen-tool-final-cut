@@ -263,7 +263,9 @@ export async function loadProjectState(projectId) {
 
   // Load entities by sessionId
   const [allRefs, allLocked, allOutputs, allWinners] = await Promise.all([
-    db.getAllByIndex('refs', 'sessionId', sessionId),
+    projectId
+      ? db.getAllByIndex('refs', 'projectId', projectId)
+      : db.getAllByIndex('refs', 'sessionId', sessionId),
     db.getAllByIndex('lockedElements', 'sessionId', sessionId),
     db.getAllByIndex('outputs', 'sessionId', sessionId),
     db.getAllByIndex('winners', 'sessionId', sessionId),
@@ -398,7 +400,7 @@ function base64ToBlob(base64, mimeType) {
 
 // --- Refs ---
 
-export async function saveRef(sessionId, ref) {
+export async function saveRef(sessionId, ref, projectId = null) {
   const { previewUrl: _previewUrl, file: _file, blob, ...persistable } = ref
   // Convert blob to base64 for JSON-safe storage
   let blobBase64 = persistable.blobBase64 || null
@@ -409,7 +411,7 @@ export async function saveRef(sessionId, ref) {
       console.warn('[session] failed to convert ref blob to base64')
     }
   }
-  await db.put('refs', { ...persistable, sessionId, blobBase64 })
+  await db.put('refs', { ...persistable, sessionId, projectId, blobBase64 })
 }
 
 export async function deleteRef(id) {

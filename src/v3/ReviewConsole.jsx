@@ -76,6 +76,7 @@ export default function ReviewConsole({
   onOpenOutput,
   refs,
   onAddRefs,
+  onUseAsRef,
   onRemoveRef,
   onToggleRefSend,
   onUpdateRefMode,
@@ -365,7 +366,7 @@ export default function ReviewConsole({
               onMarkWinner={onMarkWinner}
               onCorrectAnnotation={handleCorrectAnnotation}
               isWinner={isCurrentWinner}
-              onUseAsRef={onAddRefs ? (output) => {
+              onUseAsRef={onUseAsRef ? onUseAsRef : onAddRefs ? (output) => {
                 const refImgUrl = getImageUrl(output)
                 if (!refImgUrl) return
                 fetch(refImgUrl)
