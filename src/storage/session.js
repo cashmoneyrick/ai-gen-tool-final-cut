@@ -298,7 +298,11 @@ export async function loadProjectState(projectId) {
     if (!blob && ref.blobBase64) {
       blob = base64ToBlob(ref.blobBase64, ref.type || 'image/png')
     }
-    const previewUrl = blob ? URL.createObjectURL(blob) : null
+    const previewUrl = blob
+      ? URL.createObjectURL(blob)
+      : ref.imagePath
+        ? `/api/images/${ref.id}`
+        : null
     return { ...ref, blob, previewUrl }
   })
 

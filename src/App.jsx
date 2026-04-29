@@ -596,7 +596,7 @@ export default function App() {
       setRefs((prev) => {
         if (prev.some(r => r.sourceOutputId === output.id)) return prev
         const previewUrl = output.imagePath
-          ? `/api/images/${output.imagePath.split('/').pop()}`
+          ? `/api/images/${output.id}`
           : null
         return [...prev, { ...ref, previewUrl }]
       })
@@ -611,14 +611,14 @@ export default function App() {
         if (r.id !== id) return r
         const updated = { ...r, send: !r.send }
         if (activeSessionId) {
-          persist.saveRef(activeSessionId, updated).catch((error) => {
+          persist.saveRef(activeSessionId, updated, activeProjectId).catch((error) => {
             recoverFromPersistenceError('ref include toggle', error)
           })
         }
         return updated
       })
     )
-  }, [activeSessionId, recoverFromPersistenceError])
+  }, [activeSessionId, activeProjectId, recoverFromPersistenceError])
 
   const handleUpdateRefMode = useCallback((id, mode) => {
     setRefs((prev) =>
@@ -628,14 +628,14 @@ export default function App() {
         const anchor = mode === 'match' || mode === 'style'
         const updated = { ...r, mode, anchor }
         if (activeSessionId) {
-          persist.saveRef(activeSessionId, updated).catch((error) => {
+          persist.saveRef(activeSessionId, updated, activeProjectId).catch((error) => {
             recoverFromPersistenceError('ref mode update', error)
           })
         }
         return updated
       })
     )
-  }, [activeSessionId, recoverFromPersistenceError])
+  }, [activeSessionId, activeProjectId, recoverFromPersistenceError])
 
   const handleReorderRefs = useCallback((newOrder) => {
     setRefs((prev) => {
@@ -656,14 +656,14 @@ export default function App() {
         if (r.id !== id) return r
         const updated = { ...r, notes }
         if (activeSessionId) {
-          persist.saveRef(activeSessionId, updated).catch((error) => {
+          persist.saveRef(activeSessionId, updated, activeProjectId).catch((error) => {
             recoverFromPersistenceError('ref notes update', error)
           })
         }
         return updated
       })
     )
-  }, [activeSessionId, recoverFromPersistenceError])
+  }, [activeSessionId, activeProjectId, recoverFromPersistenceError])
 
   const handleRemoveRef = useCallback((id) => {
     setRefs((prev) => {
