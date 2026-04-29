@@ -436,12 +436,24 @@ const genOptions = {
 
 // --- Prepare refs ---
 
-const refPayloads = sendingRefs
-  .filter((r) => r.blobBase64)
-  .map((r) => ({
-    base64: r.blobBase64,
-    mimeType: r.type || 'image/png',
-  }))
+const refPayloads = sendingRefs.flatMap((r) => {
+  if (r.blobBase64) {
+    return [{ base64: r.blobBase64, mimeType: r.type || 'image/png' }]
+  }
+  if (r.imagePath) {
+    try {
+      const absPath = fileURLToPath(new URL(`../data/${r.imagePath}`, import.meta.url))
+      const buf = readFileSync(absPath)
+      const base64 = buf.toString('base64')
+      const mimeType = r.imagePath.endsWith('.png') ? 'image/png' : 'image/jpeg'
+      return [{ base64, mimeType }]
+    } catch {
+      console.warn(`[operator] Could not read ref image: ${r.imagePath}`)
+      return []
+    }
+  }
+  return []
+})
 
 const sentRefsMeta = sendingRefs.map((r) => ({
   id: r.id,
