@@ -829,8 +829,32 @@ export function runCollectionMigration() {
   return migrated
 }
 
+export function runRefMigration() {
+  const refs = storage.getAll('refs')
+  const sessions = storage.getAll('sessions')
+  const sessionProjectMap = new Map(sessions.map(s => [s.id, s.projectId]))
+
+  let migrated = 0
+  for (const ref of refs) {
+    if (ref.projectId) continue
+    const projectId = sessionProjectMap.get(ref.sessionId)
+    if (!projectId) continue
+    storage.put('refs', {
+      ...ref,
+      projectId,
+      refType: ref.refType || 'general',
+    })
+    migrated++
+  }
+  if (migrated > 0) {
+    console.log(`[migrate] Backfilled projectId+refType on ${migrated} ref(s)`)
+  }
+  return migrated
+}
+
 // Run on startup
 runCollectionMigration()
+runRefMigration()
 
 // --- Main middleware entry point ---
 
