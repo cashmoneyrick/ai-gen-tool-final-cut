@@ -776,6 +776,62 @@ async function handleBrandDNARoute(req, res) {
   }
 }
 
+// --- One-time collection migration: lift session fields onto project records ---
+
+const EMPTY_BUCKETS_MIGRATE = { subject: '', style: '', lighting: '', composition: '', technical: '' }
+
+function mergeIds(projectIds, sessionIds) {
+  const seen = new Set(projectIds || [])
+  const result = [...(projectIds || [])]
+  for (const id of (sessionIds || [])) {
+    if (!seen.has(id)) { seen.add(id); result.push(id) }
+  }
+  return result
+}
+
+export function runCollectionMigration() {
+  const projects = storage.getAll('projects')
+  const sessions = storage.getAll('sessions')
+  const sessionByProject = new Map(sessions.map(s => [s.projectId, s]))
+
+  let migrated = 0
+  for (const project of projects) {
+    if (project._sessionMigrated) continue
+    const session = sessionByProject.get(project.id)
+    if (!session) {
+      storage.put('projects', { ...project, _sessionMigrated: true })
+      migrated++
+      continue
+    }
+    storage.put('projects', {
+      ...project,
+      goal: project.goal ?? session.goal ?? '',
+      buckets: project.buckets ?? session.buckets ?? { ...EMPTY_BUCKETS_MIGRATE },
+      assembledPrompt: project.assembledPrompt ?? session.assembledPrompt ?? '',
+      assembledPromptDirty: project.assembledPromptDirty ?? session.assembledPromptDirty ?? false,
+      roughNotes: project.roughNotes ?? session.roughNotes ?? '',
+      lockedElementIds: mergeIds(project.lockedElementIds, session.lockedElementIds),
+      refIds: mergeIds(project.refIds, session.refIds),
+      outputIds: mergeIds(project.outputIds, session.outputIds),
+      winnerIds: mergeIds(project.winnerIds, session.winnerIds),
+      model: project.model ?? session.model ?? null,
+      batchSize: project.batchSize ?? session.batchSize ?? 1,
+      planStatus: project.planStatus ?? session.planStatus ?? 'idle',
+      approvedPlan: project.approvedPlan ?? session.approvedPlan ?? null,
+      promptPreviewMode: project.promptPreviewMode ?? session.promptPreviewMode ?? false,
+      _sessionMigrated: true,
+    })
+    migrated++
+  }
+  if (migrated > 0) {
+    console.log(`[migrate] Lifted ${migrated} session(s) into project records`)
+  }
+  return migrated
+}
+
+// Run on startup
+runCollectionMigration()
+
 // --- Main middleware entry point ---
 
 export function handleStoreAPI(req, res, next) {
