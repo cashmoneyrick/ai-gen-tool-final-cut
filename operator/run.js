@@ -121,7 +121,9 @@ console.log(`[operator] Goal: ${project.goal || session.goal || '(none)'}`)
 
 // --- Load session entities ---
 // Outputs and winners span ALL sessions — historical data should be visible across the full project
-// Locked elements and refs stay session-specific (active-session concerns)
+// Locked elements stay session-specific; refs are project-scoped (Phase 3).
+// NOTE: refs.projectId is backfilled by runRefMigration() in server/api.js at API server startup.
+// If the API server has never started in this environment, pre-existing refs will be invisible here.
 
 const allOutputs = sessions.flatMap(s => storage.getAllByIndex('outputs', 'sessionId', s.id))
 const allWinners = sessions.flatMap(s => storage.getAllByIndex('winners', 'sessionId', s.id))
