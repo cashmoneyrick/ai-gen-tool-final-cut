@@ -78,6 +78,7 @@ export default function ActionBar({
     : 'Run Next Attempt'
 
   const isDisabled = (!dirty && handoffState === 'idle') || handoffState === 'saving'
+  const showRunButton = typeof onRunNextAttempt === 'function'
 
   const isFlash = model?.includes('flash')
   const sizeOptions = isFlash ? ['512', '1K', '2K', '4K'] : ['1K', '2K', '4K']
@@ -210,8 +211,7 @@ export default function ActionBar({
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="v3-control-divider" />
+        {showRunButton && <div className="v3-control-divider" />}
 
         {/* Image count */}
         <div className="v3-control-group">
@@ -227,14 +227,16 @@ export default function ActionBar({
           </select>
         </div>
 
-        {/* Run button */}
-        <button
-          className={`v3-run-btn ${isDisabled ? 'v3-run-btn-disabled' : ''} ${handoffState === 'saved' ? 'v3-run-btn-success' : ''}`}
-          onClick={handleRun}
-          disabled={isDisabled}
-        >
-          {buttonLabel}
-        </button>
+        {/* Run button — only shown when onRunNextAttempt is provided */}
+        {showRunButton && (
+          <button
+            className={`v3-run-btn ${isDisabled ? 'v3-run-btn-disabled' : ''} ${handoffState === 'saved' ? 'v3-run-btn-success' : ''}`}
+            onClick={handleRun}
+            disabled={isDisabled}
+          >
+            {buttonLabel}
+          </button>
+        )}
       </div>
     </div>
   )
