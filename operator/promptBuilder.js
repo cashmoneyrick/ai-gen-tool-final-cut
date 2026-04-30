@@ -832,7 +832,7 @@ export function buildVariationPrompt({ basePrompt, colorSpec, label, finishOverr
 export function build3DRenderPrompt({ designDescription = '' }) {
   const parts = [
     'Professional product photograph of a female hand wearing press-on nails.',
-    designDescription ? `Nail design: ${designDescription}.` : '',
+    designDescription ? `Nail design: ${designDescription.replace(/\.\s*$/, '')}.` : '',
     'Photorealistic three-dimensional render — nails appear as real physical objects with natural depth, surface texture, and light interaction.',
     'Soft studio lighting from slightly above-left. White or off-white background. No props, plates, or distracting elements.',
     'Hand viewed from above at approximately 45 degrees. Fingers spread naturally and extended. All five nails clearly visible.',
@@ -862,10 +862,10 @@ const ON_HAND_SHOT_CONTEXTS = {
  */
 export function buildOnHandPrompt({ designDescription = '', shotType = 'product', background = null }) {
   const context = ON_HAND_SHOT_CONTEXTS[shotType] || ON_HAND_SHOT_CONTEXTS.product
-  const bgNote = background ? `Background: ${background}.` : ''
+  const bgNote = background ? `Background: ${background.replace(/\.\s*$/, '')}.` : ''
   const parts = [
     'Styled photograph of a female hand with press-on nails.',
-    designDescription ? `Nail design: ${designDescription}.` : '',
+    designDescription ? `Nail design: ${designDescription.replace(/\.\s*$/, '')}.` : '',
     context,
     bgNote,
     'Nails are the primary visual focus. Natural, relaxed hand pose. Nails facing camera.',
