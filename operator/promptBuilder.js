@@ -795,6 +795,7 @@ export function buildStructuredPrompt({
  * @param {string|null} opts.finishOverride - e.g. 'matte'; null keeps base finish
  */
 export function buildVariationPrompt({ basePrompt, colorSpec, label, finishOverride }) {
+  if (!basePrompt) return ''
   let prompt = basePrompt
 
   const colorInstruction = colorSpec
@@ -803,7 +804,7 @@ export function buildVariationPrompt({ basePrompt, colorSpec, label, finishOverr
 
   if (colorInstruction) {
     if (prompt.includes('{color}')) {
-      prompt = prompt.replace('{color}', colorInstruction)
+      prompt = prompt.replaceAll('{color}', colorInstruction)
     } else {
       prompt = `${prompt.trimEnd()} Color override: ${colorInstruction}.`
     }
@@ -813,5 +814,5 @@ export function buildVariationPrompt({ basePrompt, colorSpec, label, finishOverr
     prompt = `${prompt.trimEnd()} Finish override: ${finishOverride}.`
   }
 
-  return prompt
+  return prompt.trim()
 }
