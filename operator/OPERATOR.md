@@ -261,9 +261,9 @@ Context includes: project, session, buckets, locked elements, refs, recent outpu
 
 ## Pipeline Modes
 
-The operator has three production modes for systematic collection generation. Each is a job type triggered by `--job-type`. Use these after the searching phase is done and a winner has been confirmed.
+The operator has three production modes for systematic collection generation. Use these after the searching phase is done and a winner has been confirmed.
 
-### Mode: 2D Variation (`--job-type 2d-variation`)
+### Mode: 2D Variation (`--variant-id`)
 
 Produces systematic color/finish variants of a confirmed base design.
 
@@ -285,7 +285,7 @@ curl -s -X POST "http://localhost:5173/api/variation-plan/${PROJECT_ID}" \
   }'
 ```
 
-**Run variants**
+**Run planned variants**
 
 ```bash
 node --env-file=.env operator/run.js --variant-id v_001

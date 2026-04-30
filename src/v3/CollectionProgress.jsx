@@ -1,13 +1,25 @@
 import { useMemo } from 'react'
 import { normalizeFeedback } from '../reviewFeedback.js'
 
-function VariationPlanProgress({ plan }) {
+function VariationPlanProgress({ plan, outputs, winners }) {
   if (!plan || !plan.variants || plan.variants.length === 0) return null
 
+  const winnerOutputIds = new Set(winners.map((winner) => winner.outputId || winner.id))
+  const outputIdByVariationId = new Map(
+    outputs
+      .filter((output) => output.variationId)
+      .map((output) => [output.variationId, output.id])
+  )
+  const variants = plan.variants.map((variant) => {
+    const outputId = variant.outputId || outputIdByVariationId.get(variant.id) || null
+    const status = outputId && winnerOutputIds.has(outputId) ? 'winner' : variant.status
+    return { ...variant, outputId, status }
+  })
+
   const total = plan.variants.length
-  const generated = plan.variants.filter((v) => v.status === 'generated' || v.status === 'winner').length
-  const generating = plan.variants.filter((v) => v.status === 'generating').length
-  const winners = plan.variants.filter((v) => v.status === 'winner').length
+  const generated = variants.filter((v) => v.status === 'generated' || v.status === 'winner').length
+  const generating = variants.filter((v) => v.status === 'generating').length
+  const winnerCount = variants.filter((v) => v.status === 'winner').length
 
   return (
     <div className="v3-cprog-vplan">
@@ -15,12 +27,12 @@ function VariationPlanProgress({ plan }) {
         <span className="v3-cprog-title">Variation Plan</span>
         <span className="v3-cprog-counts">
           {generated} of {total} generated
-          {winners > 0 && ` · ${winners} winner${winners !== 1 ? 's' : ''}`}
+          {winnerCount > 0 && ` · ${winnerCount} winner${winnerCount !== 1 ? 's' : ''}`}
           {generating > 0 && ` · ${generating} running`}
         </span>
       </div>
       <div className="v3-cprog-vplan-slots">
-        {plan.variants.map((variant) => (
+        {variants.map((variant) => (
           <div
             key={variant.id}
             className={`v3-cprog-vplan-slot v3-cprog-vplan-slot--${variant.status}`}
@@ -79,7 +91,7 @@ export default function CollectionProgress({ project, outputs, winners }) {
           ))}
         </div>
       )}
-      <VariationPlanProgress plan={project.variationPlan} />
+      <VariationPlanProgress plan={project.variationPlan} outputs={outputs} winners={winners} />
     </div>
   )
 }
