@@ -816,3 +816,60 @@ export function buildVariationPrompt({ basePrompt, colorSpec, label, finishOverr
 
   return prompt.trim()
 }
+
+/**
+ * Build a complete prompt for generating a photorealistic 3D nail photograph.
+ *
+ * Pass the base 2D winner as a visual ref via --ref-output-id so Gemini can
+ * see the design. This prompt instructs Gemini to render it photographically.
+ *
+ * @param {object} opts
+ * @param {string} [opts.designDescription] - Text description of the nail design,
+ *   e.g. 'French tip cat eye, garnet red #6B0F1A, coffin shape, long'.
+ *   Pull from the 2D winner's subject/style buckets. Omit if the visual ref
+ *   fully communicates the design.
+ */
+export function build3DRenderPrompt({ designDescription = '' }) {
+  const parts = [
+    'Professional product photograph of a female hand wearing press-on nails.',
+    designDescription ? `Nail design: ${designDescription}.` : '',
+    'Photorealistic three-dimensional render — nails appear as real physical objects with natural depth, surface texture, and light interaction.',
+    'Soft studio lighting from slightly above-left. White or off-white background. No props, plates, or distracting elements.',
+    'Hand viewed from above at approximately 45 degrees. Fingers spread naturally and extended. All five nails clearly visible.',
+    'Sharp focus locked on nails. Slight depth-of-field falloff toward the wrist.',
+    'All nails identical in shape, length, finish, and color. Cuticle area clean and product-free.',
+  ]
+  return parts.filter(Boolean).join(' ')
+}
+
+// Shot type context descriptions
+const ON_HAND_SHOT_CONTEXTS = {
+  product: 'Clean white or cream background. Professional product photography. Subject is the nails — nothing competes for attention.',
+  lifestyle: 'Lifestyle photograph. Natural setting: marble surface, linen fabric, or soft neutral textured background. Soft diffused natural light. Feels aspirational and calm.',
+  social: 'Styled editorial social media photograph. On-trend composition. Strong negative space, intentional color palette, subtle prop (one flower, a ring, a gemstone). Aesthetically cohesive.',
+}
+
+/**
+ * Build a complete prompt for a styled lifestyle or product photograph.
+ *
+ * Pass the 3D render winner as a visual ref via --ref-output-id. This prompt
+ * instructs Gemini to place those nails in a styled scene.
+ *
+ * @param {object} opts
+ * @param {string} [opts.designDescription] - Text description of the nail design
+ * @param {'product'|'lifestyle'|'social'} [opts.shotType] - Defaults to 'product'
+ * @param {string|null} [opts.background] - Optional override e.g. 'dark green velvet'
+ */
+export function buildOnHandPrompt({ designDescription = '', shotType = 'product', background = null }) {
+  const context = ON_HAND_SHOT_CONTEXTS[shotType] || ON_HAND_SHOT_CONTEXTS.product
+  const bgNote = background ? `Background: ${background}.` : ''
+  const parts = [
+    'Styled photograph of a female hand with press-on nails.',
+    designDescription ? `Nail design: ${designDescription}.` : '',
+    context,
+    bgNote,
+    'Nails are the primary visual focus. Natural, relaxed hand pose. Nails facing camera.',
+    'No obvious digital-render quality — photograph must feel captured, not generated.',
+  ]
+  return parts.filter(Boolean).join(' ')
+}
