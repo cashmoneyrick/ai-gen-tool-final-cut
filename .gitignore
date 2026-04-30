@@ -7,6 +7,7 @@ build/
 *.log
 .vite/
 .claude/
+.worktrees/
 
 # Data files — outputs.json contains base64 image data and exceeds GitHub's 100MB limit
 data/*.json
