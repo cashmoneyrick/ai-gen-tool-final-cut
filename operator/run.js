@@ -34,7 +34,7 @@ import { buildIterationContext, buildCrossSessionContext } from '../src/planning
 import { getEffectiveFeedback, normalizeFeedback, getFeedbackDisplay } from '../src/reviewFeedback.js'
 import { buildOperatorContext } from './context.js'
 import { generateProjectBrief, generateGlobalState, readBrief, readGlobalState, generateRecommendations } from './analyze.js'
-import { buildStructuredPrompt } from './promptBuilder.js'
+import { buildStructuredPrompt, buildVariationPrompt, build3DRenderPrompt, buildOnHandPrompt } from './promptBuilder.js'
 import { PROMPT_SECTION_ORDER, PROMPT_SECTION_LABELS } from '../src/prompt/structuredPrompt.js'
 import { DEFAULT_IMAGE_MODEL, FAST_IMAGE_MODEL, PRO_IMAGE_MODEL, resolveImageModel } from '../src/modelConfig.js'
 
@@ -60,6 +60,11 @@ function getArg(name) {
   const idx = args.indexOf(`--${name}`)
   return idx >= 0 && args[idx + 1] ? args[idx + 1] : null
 }
+
+const variantId = getArg('variant-id')            // e.g. 'v_001' — run specific plan variant
+const jobTypeArg = getArg('job-type')              // '2d-variation' | '3d-render' | 'on-hand'
+const refOutputId = getArg('ref-output-id')        // output ID to use as primary visual ref
+const shotType = getArg('shot-type') || 'product'  // 'product' | 'lifestyle' | 'social'
 
 function isPromptPreviewOutput(output) {
   return output?.outputKind === 'prompt-preview'
@@ -112,6 +117,47 @@ const session = sessions[0]
 if (!session) {
   console.error(`[operator] No session found for project: ${projectId}`)
   process.exit(1)
+}
+
+// --- Variation plan: validate and mark variant as 'generating' ---
+let activeVariant = null
+let variationBaseRef = null
+
+if (variantId) {
+  const plan = project.variationPlan
+  if (!plan) {
+    console.error(`[operator] --variant-id specified but project has no variationPlan. Create one first via POST /api/variation-plan/:projectId`)
+    process.exit(1)
+  }
+  activeVariant = plan.variants.find((v) => v.id === variantId)
+  if (!activeVariant) {
+    console.error(`[operator] Variant "${variantId}" not found in plan. Available: ${plan.variants.map((v) => v.id).join(', ')}`)
+    process.exit(1)
+  }
+  if (activeVariant.status !== 'pending') {
+    console.error(`[operator] Variant "${variantId}" is already "${activeVariant.status}" — only pending variants can be run.`)
+    process.exit(1)
+  }
+
+  // Mark as 'generating' immediately so concurrent runs won't pick it up
+  const updatedVariants = plan.variants.map((v) =>
+    v.id === variantId ? { ...v, status: 'generating' } : v
+  )
+  storage.put('projects', { ...project, variationPlan: { ...plan, variants: updatedVariants }, updatedAt: Date.now() })
+  console.log(`[operator] Variation mode: running variant "${variantId}" — ${activeVariant.label}`)
+
+  // Resolve the base output as a visual anchor ref
+  const baseOutput = storage.get('outputs', plan.baseOutputId)
+  if (baseOutput?.imagePath) {
+    variationBaseRef = {
+      id: `variation-base-${plan.baseOutputId}`,
+      imagePath: baseOutput.imagePath,
+      send: true,
+      name: 'Variation Base Template',
+      notes: 'Base design to replicate with variant color/finish',
+      refType: 'winner',
+    }
+  }
 }
 
 writeProgress('context', `Loading project "${project.name}"`)
@@ -341,7 +387,31 @@ const orderedWinners = (project.winnerIds || session.winnerIds || []).map((id) =
 const orderedLocked = (session.lockedElementIds || []).map((id) => lockedMap.get(id)).filter(Boolean)
 
 // Refs marked for sending
-const sendingRefs = allRefs.filter((r) => r.send)
+let sendingRefs = allRefs.filter((r) => r.send)
+
+// In variation mode, prepend the base design as a visual anchor
+if (variationBaseRef) {
+  sendingRefs = [variationBaseRef, ...sendingRefs]
+}
+
+// In 3d-render or on-hand mode, prepend the specified output as pipeline input ref
+if (refOutputId && !variantId) {
+  const refOutput = storage.get('outputs', refOutputId)
+  if (refOutput?.imagePath) {
+    sendingRefs = [{
+      id: `pipeline-ref-${refOutputId}`,
+      imagePath: refOutput.imagePath,
+      send: true,
+      name: 'Pipeline Input Ref',
+      notes: jobTypeArg === '3d-render'
+        ? '2D design to render as photorealistic'
+        : '3D render to style as lifestyle shot',
+      refType: 'general',
+    }, ...sendingRefs]
+  } else {
+    console.warn(`[operator] --ref-output-id ${refOutputId} not found or has no imagePath — skipping`)
+  }
+}
 
 // --- Build carry-forward context (same as App.jsx:668) ---
 
@@ -377,8 +447,34 @@ if (crossSessionLessons.length > 0) {
 writeProgress('prompt', `Assembling prompt — ${activeMemories.length} memories, ${orderedLocked.filter(e => e.enabled).length} locked, ${sendingRefs.length} refs`)
 // --- Assemble prompt through the structured builder ---
 
-// Precedence: CLI flag > decision file > session state
-const promptOverride = getArg('prompt') || decisionFile.prompt || null
+// Precedence: CLI flag > decision file > pipeline mode > session state
+let promptOverride = getArg('prompt') || decisionFile.prompt || null
+
+// In variation mode: build variant prompt from base recipe + color spec
+if (activeVariant && !promptOverride) {
+  promptOverride = buildVariationPrompt({
+    basePrompt: project.variationPlan.basePrompt,
+    colorSpec: activeVariant.colorSpec,
+    label: activeVariant.label,
+    finishOverride: activeVariant.finishOverride || null,
+  })
+  console.log(`[operator] Variation prompt built for "${activeVariant.label}": "${promptOverride.slice(0, 100)}..."`)
+}
+
+// In 3d-render mode: build photorealistic render prompt
+if (jobTypeArg === '3d-render' && !promptOverride) {
+  const designDesc = decisionFile.designDescription || getArg('design') || ''
+  promptOverride = build3DRenderPrompt({ designDescription: designDesc })
+  console.log(`[operator] 3D render prompt: "${promptOverride.slice(0, 100)}..."`)
+}
+
+// In on-hand mode: build lifestyle/product photography prompt
+if (jobTypeArg === 'on-hand' && !promptOverride) {
+  const designDesc = decisionFile.designDescription || getArg('design') || ''
+  const bgOverride = decisionFile.background || getArg('background') || null
+  promptOverride = buildOnHandPrompt({ designDescription: designDesc, shotType, background: bgOverride })
+  console.log(`[operator] On-hand prompt (${shotType}): "${promptOverride.slice(0, 100)}..."`)
+}
 const activeLockedElements = orderedLocked.filter((el) => el.enabled)
 const activeLockedTexts = activeLockedElements.map((el) => el.text)
 const promptBuild = buildStructuredPrompt({
@@ -785,6 +881,38 @@ try {
   const currentProjectOutputIds = freshProject.outputIds || []
   const mergedProjectOutputIds = [...newOutputIds, ...currentProjectOutputIds.filter(id => !newOutputIds.includes(id))]
   storage.put('projects', { ...freshProject, outputIds: mergedProjectOutputIds, updatedAt: Date.now() })
+
+  // --- Variation plan: mark variant as 'generated', tag output with variationId ---
+  if (activeVariant) {
+    const freshProjectForVariant = storage.get('projects', projectId) || project
+    const freshPlan = freshProjectForVariant.variationPlan
+    if (freshPlan) {
+      const updatedVariants = freshPlan.variants.map((v) =>
+        v.id === variantId ? { ...v, status: 'generated', outputId: newOutputIds[0] || null } : v
+      )
+      storage.put('projects', {
+        ...freshProjectForVariant,
+        variationPlan: { ...freshPlan, variants: updatedVariants },
+        updatedAt: Date.now(),
+      })
+    }
+    // Tag the first output with variationId so it can be found by plan later
+    if (newOutputIds[0]) {
+      const taggedOutput = storage.get('outputs', newOutputIds[0])
+      if (taggedOutput) {
+        storage.put('outputs', { ...taggedOutput, variationId: variantId, jobType: jobTypeArg || '2d-variation' })
+      }
+    }
+    console.log(`[operator] Variant "${variantId}" (${activeVariant.label}) marked as generated`)
+  }
+
+  // Tag non-variation pipeline outputs with jobType
+  if (!activeVariant && jobTypeArg && jobTypeArg !== 'general') {
+    for (const outId of newOutputIds) {
+      const out = storage.get('outputs', outId)
+      if (out) storage.put('outputs', { ...out, jobType: jobTypeArg })
+    }
+  }
 
   // --- Write last-batch.json so verbal feedback can be saved to these outputs ---
   const lastBatchPath = fileURLToPath(new URL('../data/last-batch.json', import.meta.url))
