@@ -781,3 +781,37 @@ export function buildStructuredPrompt({
     },
   }
 }
+
+/**
+ * Build a complete prompt for one 2D variation variant.
+ *
+ * The basePrompt should use {color} as a placeholder for the variant's color.
+ * If no placeholder is found, the color is appended as an explicit override.
+ *
+ * @param {object} opts
+ * @param {string} opts.basePrompt     - Locked base recipe from variationPlan.basePrompt
+ * @param {string|null} opts.colorSpec - Hex code e.g. '#6B0F1A'
+ * @param {string} opts.label          - Human label e.g. 'Garnet / January'
+ * @param {string|null} opts.finishOverride - e.g. 'matte'; null keeps base finish
+ */
+export function buildVariationPrompt({ basePrompt, colorSpec, label, finishOverride }) {
+  let prompt = basePrompt
+
+  const colorInstruction = colorSpec
+    ? `${label ? label + ' ' : ''}${colorSpec}`
+    : label || ''
+
+  if (colorInstruction) {
+    if (prompt.includes('{color}')) {
+      prompt = prompt.replace('{color}', colorInstruction)
+    } else {
+      prompt = `${prompt.trimEnd()} Color override: ${colorInstruction}.`
+    }
+  }
+
+  if (finishOverride) {
+    prompt = `${prompt.trimEnd()} Finish override: ${finishOverride}.`
+  }
+
+  return prompt
+}
