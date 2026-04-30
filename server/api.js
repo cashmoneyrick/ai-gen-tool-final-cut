@@ -856,6 +856,32 @@ export function runRefMigration() {
 runCollectionMigration()
 runRefMigration()
 
+// --- Variation plan route handler ---
+
+async function handleVariationPlanRoute(req, res, vpProjectId) {
+  if (!vpProjectId) return sendError(res, 400, 'Missing projectId')
+
+  if (req.method === 'GET') {
+    const vpProject = storage.get('projects', vpProjectId)
+    if (!vpProject) return sendError(res, 404, 'Project not found')
+    return sendJSON(res, 200, vpProject.variationPlan || null)
+  }
+
+  if (req.method === 'POST') {
+    try {
+      const vpBody = await readBody(req)
+      const vpProject = storage.get('projects', vpProjectId)
+      if (!vpProject) return sendError(res, 404, 'Project not found')
+      storage.put('projects', { ...vpProject, variationPlan: vpBody, updatedAt: Date.now() })
+      return sendJSON(res, 200, { ok: true })
+    } catch (err) {
+      return sendError(res, 400, err.message)
+    }
+  }
+
+  return sendError(res, 405, 'GET or POST only')
+}
+
 // --- Main middleware entry point ---
 
 export function handleStoreAPI(req, res, next) {
@@ -919,6 +945,10 @@ export function handleStoreAPI(req, res, next) {
   }
   if (cleanUrl === '/api/operator/feedback') {
     return handleOperatorFeedback(req, res)
+  }
+  if (cleanUrl.startsWith('/api/variation-plan/')) {
+    const vpProjectId = cleanUrl.slice('/api/variation-plan/'.length)
+    return handleVariationPlanRoute(req, res, vpProjectId)
   }
   if (cleanUrl === '/api/operator/annotation') {
     return handleOperatorAnnotation(req, res)
