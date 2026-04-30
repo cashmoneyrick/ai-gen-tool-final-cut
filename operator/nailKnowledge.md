@@ -79,3 +79,54 @@ When evaluating an image, produce one result per image:
 - pass: true if acceptable, false if something specific failed
 - note: one-line specific reason if failing, empty string if passing
 - category: shape | finish | color | technique | other
+
+## 3D Render Quality Criteria
+
+A 3D render is a photorealistic nail photograph generated from a 2D flat design.
+
+### Photographic Realism
+- PASS: Looks like a photograph. Natural depth, surface texture, light interaction visible on nails.
+- FAIL: Flat, illustrative, or CGI look. No sense of three-dimensionality. Looks painted or rendered.
+
+### Lighting
+- PASS: Soft directional light with natural shadows. Specular highlight on glossy nails. Clear depth.
+- FAIL: Flat even lighting. No shadows. Overexposed. Looks like a screenshot, not a photo.
+
+### Hand Realism
+- PASS: Hand looks human: natural skin texture, normal finger proportions, subtle variation.
+- FAIL: Hand looks synthetic, too perfect, distorted proportions, uncanny valley quality.
+
+### Design Fidelity to 2D Ref
+- PASS: Nail color, finish, and technique visually match the 2D input reference.
+- FAIL: Color has drifted, wrong technique applied, or elements added that were not in the 2D ref.
+
+### Universal Quality
+- All nails same shape and consistent length.
+- No props or background distractions unless specified.
+
+## On-Hand Photography Quality Criteria
+
+An on-hand photograph is a styled lifestyle or product image.
+
+### Shot Type Fidelity
+
+**Product shot:** Clean background (white/cream). Subject is the nails.
+- FAIL: Background has color, texture, or props competing with the nails.
+
+**Lifestyle shot:** Contextual background (marble, fabric). Aspirational, not busy.
+- FAIL: Background overpowers nails. Too distracting. Does not feel aspirational.
+
+**Social shot:** Editorial, styled, on-trend. Clear visual concept.
+- FAIL: Generic composition. Looks like an unlabeled product shot. No visual intention.
+
+### Nail Visibility
+- PASS: All five nails clearly visible, facing camera, in focus.
+- FAIL: Hand obscures nails, nails turned away, important nails out of focus.
+
+### Design Fidelity to 3D Render Ref
+- PASS: Nail design (color, finish, shape) visually consistent with the 3D render input.
+- FAIL: Design has drifted in the lifestyle context: different color or wrong finish.
+
+### Photographic Quality
+- PASS: Looks like a real photograph. Could be an Instagram post or product page.
+- FAIL: Clearly AI-generated artifacts, uncanny skin, over-processed look.

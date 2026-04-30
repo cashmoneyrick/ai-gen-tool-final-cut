@@ -122,6 +122,25 @@ if (!session) {
 // --- Variation plan: validate and mark variant as 'generating' ---
 let activeVariant = null
 let variationBaseRef = null
+let activeVariantMarkedGenerating = false
+
+function updateActiveVariant(status, outputId = null) {
+  if (!variantId) return
+  const freshProject = storage.get('projects', projectId) || project
+  const freshPlan = freshProject.variationPlan
+  if (!freshPlan) return
+
+  const updatedVariants = freshPlan.variants.map((v) =>
+    v.id === variantId
+      ? { ...v, status, outputId: outputId ?? v.outputId ?? null }
+      : v
+  )
+  storage.put('projects', {
+    ...freshProject,
+    variationPlan: { ...freshPlan, variants: updatedVariants },
+    updatedAt: Date.now(),
+  })
+}
 
 if (variantId) {
   const plan = project.variationPlan
@@ -139,12 +158,7 @@ if (variantId) {
     process.exit(1)
   }
 
-  // Mark as 'generating' immediately so concurrent runs won't pick it up
-  const updatedVariants = plan.variants.map((v) =>
-    v.id === variantId ? { ...v, status: 'generating' } : v
-  )
-  storage.put('projects', { ...project, variationPlan: { ...plan, variants: updatedVariants }, updatedAt: Date.now() })
-  console.log(`[operator] Variation mode: running variant "${variantId}" — ${activeVariant.label}`)
+  console.log(`[operator] Variation mode: selected variant "${variantId}" — ${activeVariant.label}`)
 
   // Resolve the base output as a visual anchor ref
   const baseOutput = storage.get('outputs', plan.baseOutputId)
@@ -735,6 +749,11 @@ try {
 writeProgress('sending', `Sending prompt (${finalPrompt.length} chars) + ${refPayloads.length} ref(s) to ${model}`)
 console.log(`[operator] Calling Vertex AI...`)
 
+if (activeVariant) {
+  updateActiveVariant('generating')
+  activeVariantMarkedGenerating = true
+}
+
 // --- Detect which setting caused a failure ---
 function detectRestriction(err, model, options) {
   const msg = (err.message || '').toLowerCase()
@@ -822,8 +841,7 @@ try {
   }
 
   if (allImages.length === 0) {
-    console.error('[operator] All calls failed')
-    process.exit(1)
+    throw Object.assign(new Error('All calls failed'), { code: 'NO_IMAGES' })
   }
 
   const endedAt = Date.now()
@@ -884,18 +902,8 @@ try {
 
   // --- Variation plan: mark variant as 'generated', tag output with variationId ---
   if (activeVariant) {
-    const freshProjectForVariant = storage.get('projects', projectId) || project
-    const freshPlan = freshProjectForVariant.variationPlan
-    if (freshPlan) {
-      const updatedVariants = freshPlan.variants.map((v) =>
-        v.id === variantId ? { ...v, status: 'generated', outputId: newOutputIds[0] || null } : v
-      )
-      storage.put('projects', {
-        ...freshProjectForVariant,
-        variationPlan: { ...freshPlan, variants: updatedVariants },
-        updatedAt: Date.now(),
-      })
-    }
+    updateActiveVariant('generated', newOutputIds[0] || null)
+    activeVariantMarkedGenerating = false
     // Tag the first output with variationId so it can be found by plan later
     if (newOutputIds[0]) {
       const taggedOutput = storage.get('outputs', newOutputIds[0])
@@ -941,6 +949,11 @@ try {
   console.error(`[operator] Generation failed: ${err.code || 'UNKNOWN'} — ${err.message}`)
   if (err.detail) console.error(`[operator] Detail: ${err.detail}`)
   if (err.retryable) console.error('[operator] This error may be retryable.')
+
+  if (activeVariantMarkedGenerating) {
+    updateActiveVariant('pending')
+    console.error(`[operator] Variant "${variantId}" reset to pending after failed generation.`)
+  }
 
   // Record restriction so UI can grey out the setting that caused this
   try {

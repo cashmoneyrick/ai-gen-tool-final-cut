@@ -6453,3 +6453,36 @@
   text-align: left;
   flex-shrink: 0;
 }
+
+/* ── Variation Plan Progress ─────────────────────────────────────── */
+
+.v3-cprog-vplan {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(128,128,128,0.12);
+}
+
+.v3-cprog-vplan-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.v3-cprog-vplan-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.v3-cprog-vplan-slot {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.v3-cprog-vplan-slot--pending { background: rgba(128,128,128,0.2); }
+.v3-cprog-vplan-slot--generating { background: rgba(100,160,255,0.7); }
+.v3-cprog-vplan-slot--generated { background: rgba(91,140,90,0.6); }
+.v3-cprog-vplan-slot--winner { background: #5b8c5a; }

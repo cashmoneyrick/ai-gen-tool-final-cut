@@ -258,3 +258,89 @@ const ctx = buildOperatorContext('project-id')  // specific project
 ```
 
 Context includes: project, session, buckets, locked elements, refs, recent outputs, winners, carry-forward, memories, feedback summary, stats, brief, globalState.
+
+## Pipeline Modes
+
+The operator has three production modes for systematic collection generation. Each is a job type triggered by `--job-type`. Use these after the searching phase is done and a winner has been confirmed.
+
+### Mode: 2D Variation (`--job-type 2d-variation`)
+
+Produces systematic color/finish variants of a confirmed base design.
+
+**Setup: create a variation plan once per collection**
+
+```bash
+PROJECT_ID=$(node --input-type=module -e "import { getActiveProject } from './server/storage.js'; console.log(getActiveProject())")
+
+curl -s -X POST "http://localhost:5173/api/variation-plan/${PROJECT_ID}" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "baseOutputId": "<winner output ID>",
+    "basePrompt": "<winner prompt with {color} placeholder>",
+    "jobType": "2d-variation",
+    "variants": [
+      { "id": "v_001", "label": "Garnet / January", "colorSpec": "#6B0F1A", "finishOverride": null, "status": "pending", "outputId": null },
+      { "id": "v_002", "label": "Amethyst / February", "colorSpec": "#9B59B6", "finishOverride": null, "status": "pending", "outputId": null }
+    ]
+  }'
+```
+
+**Run variants**
+
+```bash
+node --env-file=.env operator/run.js --variant-id v_001
+node --env-file=.env operator/run.js --variant-id v_002
+```
+
+Each run builds the variant prompt, sends the base winner as a visual ref, generates, and marks the variant as generated. Check the insights panel in the UI for plan progress.
+
+To extract `basePrompt` from a winner, read its `finalPromptSent` field from `data/outputs.json` or `/api/store/outputs/:id`. Replace the color reference with `{color}`.
+
+### Mode: 3D Render (`--job-type 3d-render`)
+
+Produces a photorealistic nail photograph from a confirmed 2D variant winner.
+
+```bash
+node --env-file=.env operator/run.js \
+  --job-type 3d-render \
+  --ref-output-id <2D winner output ID> \
+  --design "French tip cat eye, garnet red #6B0F1A, coffin shape, long"
+```
+
+The `--ref-output-id` image is sent to Gemini as a visual anchor. The `--design` text supplements it. Evaluate results against "3D Render Quality Criteria" in `nailKnowledge.md`.
+
+### Mode: On-Hand Photography (`--job-type on-hand`)
+
+Produces a styled lifestyle or product photograph from a confirmed 3D render winner.
+
+```bash
+node --env-file=.env operator/run.js \
+  --job-type on-hand \
+  --ref-output-id <3D render output ID> \
+  --shot-type lifestyle \
+  --background "white marble surface"
+```
+
+Shot types: `product` (default), `lifestyle`, `social`. Evaluate against "On-Hand Photography Quality Criteria" in `nailKnowledge.md`.
+
+### Full Pipeline Example
+
+```bash
+# Step 1: Confirm 2D winner, then create a variation plan.
+
+# Step 2: Run all 2D variants.
+node --env-file=.env operator/run.js --variant-id v_001
+node --env-file=.env operator/run.js --variant-id v_002
+
+# Step 3: For each 2D winner, generate a 3D render.
+node --env-file=.env operator/run.js \
+  --job-type 3d-render \
+  --ref-output-id <2D winner ID> \
+  --design "French tip cat eye, garnet red #6B0F1A, coffin shape, long"
+
+# Step 4: For each 3D render winner, generate an on-hand shot.
+node --env-file=.env operator/run.js \
+  --job-type on-hand \
+  --ref-output-id <3D render winner ID> \
+  --shot-type product
+```

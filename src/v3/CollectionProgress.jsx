@@ -1,6 +1,37 @@
 import { useMemo } from 'react'
 import { normalizeFeedback } from '../reviewFeedback.js'
 
+function VariationPlanProgress({ plan }) {
+  if (!plan || !plan.variants || plan.variants.length === 0) return null
+
+  const total = plan.variants.length
+  const generated = plan.variants.filter((v) => v.status === 'generated' || v.status === 'winner').length
+  const generating = plan.variants.filter((v) => v.status === 'generating').length
+  const winners = plan.variants.filter((v) => v.status === 'winner').length
+
+  return (
+    <div className="v3-cprog-vplan">
+      <div className="v3-cprog-vplan-row">
+        <span className="v3-cprog-title">Variation Plan</span>
+        <span className="v3-cprog-counts">
+          {generated} of {total} generated
+          {winners > 0 && ` · ${winners} winner${winners !== 1 ? 's' : ''}`}
+          {generating > 0 && ` · ${generating} running`}
+        </span>
+      </div>
+      <div className="v3-cprog-vplan-slots">
+        {plan.variants.map((variant) => (
+          <div
+            key={variant.id}
+            className={`v3-cprog-vplan-slot v3-cprog-vplan-slot--${variant.status}`}
+            title={`${variant.label}: ${variant.status}`}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function CollectionProgress({ project, outputs, winners }) {
   const stats = useMemo(() => {
     const ratingCounts = [0, 0, 0, 0, 0] // index i = rating (i+1)
@@ -48,6 +79,7 @@ export default function CollectionProgress({ project, outputs, winners }) {
           ))}
         </div>
       )}
+      <VariationPlanProgress plan={project.variationPlan} />
     </div>
   )
 }
