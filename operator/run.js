@@ -36,6 +36,7 @@ import { buildBatchLesson } from '../src/feedback/batchLessons.js'
 import { buildOperatorContext } from './context.js'
 import { generateProjectBrief, generateGlobalState, readBrief, readGlobalState, generateRecommendations } from './analyze.js'
 import { buildStructuredPrompt, buildVariationPrompt, build3DRenderPrompt, buildOnHandPrompt } from './promptBuilder.js'
+import { selectAutoLessonsForProject } from './autoLessons.js'
 import { PROMPT_SECTION_ORDER, PROMPT_SECTION_LABELS } from '../src/prompt/structuredPrompt.js'
 import { DEFAULT_IMAGE_MODEL, FAST_IMAGE_MODEL, PRO_IMAGE_MODEL, resolveImageModel } from '../src/modelConfig.js'
 
@@ -413,6 +414,7 @@ const activeProjectLessons = [
   }] : []),
   ...savedProjectLessons,
 ].slice(0, 8)
+const activeAutoLessons = selectAutoLessonsForProject(globalState, project, 8)
 
 // Refs marked for sending
 let sendingRefs = allRefs.filter((r) => r.send)
@@ -472,7 +474,7 @@ if (crossSessionLessons.length > 0) {
   crossSessionPreamble = `[Prior session lessons: ${crossSessionLessons.map((l) => l.text).join('; ')}]`
 }
 
-writeProgress('prompt', `Assembling prompt — ${activeMemories.length} memories, ${activeProjectLessons.length} lessons, ${orderedLocked.filter(e => e.enabled).length} locked, ${sendingRefs.length} refs`)
+writeProgress('prompt', `Assembling prompt — ${activeMemories.length} memories, ${activeProjectLessons.length} project lessons, ${activeAutoLessons.length} auto lessons, ${orderedLocked.filter(e => e.enabled).length} locked, ${sendingRefs.length} refs`)
 // --- Assemble prompt through the structured builder ---
 
 // Precedence: CLI flag > decision file > pipeline mode > session state
@@ -513,6 +515,7 @@ const promptBuild = buildStructuredPrompt({
   sendingRefs,
   activeMemories,
   activeProjectLessons,
+  activeAutoLessons,
   orderedOutputs,
   orderedWinners,
   iterationContext,
@@ -609,6 +612,7 @@ const generationReceipt = {
   promptPreviewMode,
   crossSessionContext: crossSessionLessons.length > 0,
   crossSessionLessonCount: crossSessionLessons.length,
+  autoLessonsUsed: { count: activeAutoLessons.length, ids: activeAutoLessons.map((lesson) => lesson.id) },
 }
 
 const outputContext = {

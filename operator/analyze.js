@@ -19,6 +19,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import * as storage from '../server/storage.js'
 import { normalizeFeedback } from '../src/reviewFeedback.js'
+import { distillAutoLessons } from './autoLessons.js'
 
 function isPromptPreviewOutput(output) {
   return output?.outputKind === 'prompt-preview'
@@ -575,12 +576,27 @@ export function analyzeGlobal() {
     }
   }
 
+  const autoLessons = distillAutoLessons({
+    projects: allProjects,
+    sessions: allSessions,
+    outputs: allOutputs,
+  })
+
+  for (const lesson of autoLessons) {
+    if (!categoryProfiles[lesson.category]) continue
+    if (!categoryProfiles[lesson.category].autoLessons) {
+      categoryProfiles[lesson.category].autoLessons = []
+    }
+    categoryProfiles[lesson.category].autoLessons.push(lesson)
+  }
+
   return {
     totalProjects: allProjects.length,
     totalOutputs: allOutputs.length,
     totalWinners: allWinners.length,
     projectSummaries,
     categoryProfiles,
+    autoLessons,
     tasteProfile: {
       alwaysHigh: alwaysHigh.slice(0, 20),
       alwaysLow: alwaysLow.slice(0, 20),
@@ -711,6 +727,7 @@ export function generateGlobalState() {
     totalWinners: analysis.totalWinners,
     projectSummaries: analysis.projectSummaries,
     categoryProfiles: analysis.categoryProfiles || {},
+    autoLessons: analysis.autoLessons || [],
     tasteProfile: analysis.tasteProfile,
     brandDNA: brandDNA ? { dna: brandDNA.dna.slice(0, 15), colors: brandDNA.colors, models: brandDNA.models } : null,
     vocabulary,

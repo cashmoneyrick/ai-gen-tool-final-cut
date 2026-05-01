@@ -17,6 +17,7 @@ import { buildIterationContext, summarizeIterationContext } from '../src/plannin
 import { getEffectiveFeedback, normalizeFeedback } from '../src/reviewFeedback.js'
 import { readBrief, readGlobalState } from './analyze.js'
 import { DEFAULT_IMAGE_MODEL } from '../src/modelConfig.js'
+import { selectAutoLessonsForProject } from './autoLessons.js'
 
 const MAX_RECENT_OUTPUTS = 12
 const MAX_WINNERS = 10
@@ -138,6 +139,7 @@ export function buildOperatorContext(projectId) {
   const projectLessons = storage.getAllByIndex('projectLessons', 'projectId', resolvedProjectId)
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
     .slice(0, MAX_PROJECT_LESSONS)
+  const autoLessons = selectAutoLessonsForProject(globalState, { ...project, id: resolvedProjectId, category: projectCategory }, 8)
 
   // Build context
   return {
@@ -202,6 +204,13 @@ export function buildOperatorContext(projectId) {
       signal: lesson.signal || 'preference',
       text: truncate(lesson.text, 260),
       createdAt: lesson.createdAt || 0,
+    })),
+    autoLessons: autoLessons.map((lesson) => ({
+      id: lesson.id,
+      category: lesson.category || 'global',
+      signal: lesson.signal || 'preference',
+      text: truncate(lesson.text, 260),
+      support: lesson.support || 0,
     })),
     feedbackSummary,
     stats: {

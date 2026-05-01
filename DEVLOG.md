@@ -21,6 +21,7 @@
 - Made review ratings clearer with full labels and cleaned up thumbnail badges into a single readable status chip plus a small notes marker.
 - Evened out the thumbnail batch highlight spacing so the colored background wraps thumbnails symmetrically.
 - Moved the feedback-pattern helper out of Rick's review UI and into the operator flow so lessons can be used automatically without adding another visible task.
+- Added automatic category memory distillation so repeated Rick feedback can carry into future projects without a visible review task.
 
 ## 2026-04
 

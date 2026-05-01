@@ -40,6 +40,7 @@ const SOURCE_PRIORITY = {
   batchNote: 780,
   outputNote: 760,
   projectLesson: 740,
+  autoLesson: 735,
   memoryPinned: 700,
   briefManual: 660,
   briefPattern: 620,
@@ -461,6 +462,7 @@ export function buildStructuredPrompt({
   sendingRefs = [],
   activeMemories = [],
   activeProjectLessons = [],
+  activeAutoLessons = [],
   orderedOutputs = [],
   orderedWinners = [],
   iterationContext = null,
@@ -676,6 +678,23 @@ export function buildStructuredPrompt({
       defaultSection: isCorrective ? 'technical' : classifyPromptSection(clean, 'style'),
       createdAt: lesson.createdAt || 0,
       meta: { lessonId: lesson.id, lessonSignal: lesson.signal || 'preference' },
+    })
+  }
+
+  // --- Automatic cross-project/category lessons distilled from Rick's feedback ---
+  for (const lesson of activeAutoLessons || []) {
+    const clean = normalizeText(lesson.text)
+    if (!clean) continue
+    const isCorrective = lesson.signal === 'failure'
+      || lesson.signal === 'correction'
+      || clean.toLowerCase().includes('avoid')
+    addSectionTextCandidates(candidates, clean, {
+      sourceType: 'autoLesson',
+      role: isCorrective ? 'negative' : 'preserve',
+      priority: SOURCE_PRIORITY.autoLesson,
+      defaultSection: isCorrective ? 'technical' : classifyPromptSection(clean, 'style'),
+      createdAt: lesson.updatedAt || 0,
+      meta: { lessonId: lesson.id, category: lesson.category, support: lesson.support },
     })
   }
 
