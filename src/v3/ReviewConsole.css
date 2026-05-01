@@ -2995,6 +2995,122 @@
 
 /* --- Feedback Notes (Keep / Fix) --- */
 
+/* --- Review Calibration --- */
+
+.v3-readiness-stack,
+.v3-review-reason-box,
+.v3-calibration-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.v3-readiness-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.v3-readiness-btn {
+  min-width: 0;
+  min-height: 30px;
+  border: 1px solid var(--v3-border-subtle);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--v3-text-secondary);
+  font-family: var(--v3-font);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.v3-readiness-btn:hover,
+.v3-readiness-btn--selected {
+  color: var(--v3-text-primary);
+  border-color: rgba(0, 113, 227, 0.55);
+  background: rgba(0, 113, 227, 0.12);
+}
+
+.v3-readiness-btn--ready.v3-readiness-btn--selected {
+  border-color: rgba(52, 199, 89, 0.7);
+  background: rgba(52, 199, 89, 0.14);
+}
+
+.v3-readiness-btn--reject.v3-readiness-btn--selected,
+.v3-readiness-btn--wrong.v3-readiness-btn--selected {
+  border-color: rgba(255, 59, 48, 0.65);
+  background: rgba(255, 59, 48, 0.12);
+}
+
+.v3-review-reason-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 58px;
+  resize: vertical;
+  border: 1px solid var(--v3-border-subtle);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--v3-text-primary);
+  font-family: var(--v3-font);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 8px;
+}
+
+.v3-review-reason-input:focus {
+  outline: none;
+  border-color: rgba(0, 113, 227, 0.55);
+}
+
+.v3-calibration-card {
+  padding: 8px;
+  border-radius: 7px;
+  border: 1px solid var(--v3-border-subtle);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.v3-calibration-card--agree {
+  border-color: rgba(52, 199, 89, 0.45);
+}
+
+.v3-calibration-card--close {
+  border-color: rgba(255, 204, 0, 0.45);
+}
+
+.v3-calibration-card--different {
+  border-color: rgba(255, 59, 48, 0.45);
+}
+
+.v3-calibration-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.v3-calibration-label {
+  color: var(--v3-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.v3-calibration-value {
+  color: var(--v3-text-primary);
+  font-size: 11px;
+  text-align: right;
+}
+
+.v3-calibration-summary {
+  color: var(--v3-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .v3-feedback-notes {
   display: flex;
   flex-direction: column;

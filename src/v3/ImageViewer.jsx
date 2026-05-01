@@ -56,6 +56,41 @@ const RATING_FACES = [
   </svg>,
 ]
 
+const READINESS_OPTIONS = [
+  { value: 'ready', label: 'Ready', shortLabel: 'Ready', score: 5, title: 'Ready as-is' },
+  { value: 'cleanup', label: 'Cleanup', shortLabel: 'Clean', score: 4, title: 'Good design that needs cleanup' },
+  { value: 'inspiration', label: 'Inspo', shortLabel: 'Inspo', score: 3, title: 'Useful as design inspiration' },
+  { value: 'wrong', label: 'Wrong', shortLabel: 'Wrong', score: 2, title: 'Technically okay, wrong direction' },
+  { value: 'reject', label: 'Reject', shortLabel: 'Reject', score: 1, title: 'Reject this output' },
+]
+
+function getReadinessOption(value) {
+  return READINESS_OPTIONS.find((option) => option.value === value) || null
+}
+
+function getOperatorReview(output) {
+  if (output?.operatorReview) return output.operatorReview
+  if (output?.operatorAnnotation) {
+    return {
+      readiness: output.operatorAnnotation.pass ? null : 'reject',
+      score: null,
+      reason: output.operatorAnnotation.note || '',
+      pass: output.operatorAnnotation.pass,
+      category: output.operatorAnnotation.category || 'other',
+    }
+  }
+  return null
+}
+
+function getCalibrationAgreement(rickReview, operatorReview) {
+  if (!rickReview?.readiness || !operatorReview?.readiness) return null
+  if (rickReview.readiness === operatorReview.readiness) return 'agree'
+  const rickScore = getReadinessOption(rickReview.readiness)?.score
+  const operatorScore = getReadinessOption(operatorReview.readiness)?.score
+  if (!rickScore || !operatorScore) return 'different'
+  return Math.abs(rickScore - operatorScore) <= 1 ? 'close' : 'different'
+}
+
 const REVIEW_DOCK_PLACEMENT_KEY = 'v3-review-dock-placement'
 const REVIEW_DOCK_POSITION_KEY = 'v3-review-dock-position'
 const REVIEW_DOCK_FLOAT_MARGIN = 12
@@ -160,6 +195,7 @@ export default function ImageViewer({
   totalCount,
   onNavigate,
   onUpdateFeedback,
+  onUpdateReview,
   onUseAsRef,
   onMarkWinner,
   isWinner,
@@ -857,12 +893,39 @@ export default function ImageViewer({
     : output.feedback === 'up' ? 4
     : output.feedback === 'down' ? 2
     : null
+  const rickReview = output.rickReview || {}
+  const operatorReview = getOperatorReview(output)
+  const selectedReadiness = rickReview.readiness || null
+  const operatorReadiness = getReadinessOption(operatorReview?.readiness)
+  const calibrationAgreement = getCalibrationAgreement(rickReview, operatorReview)
   const dockStyle = dockPlacement === 'float' && dockPosition
     ? { left: `${dockPosition.x}px`, top: `${dockPosition.y}px` }
     : undefined
   const reviewDockTone = reviewDockStatus?.trustSignal?.tone === 'error'
     ? 'error'
     : reviewDockStatus?.liveTone || 'pending'
+
+  const handleReadinessClick = (option) => {
+    if (!onUpdateReview) return
+    const isSelected = selectedReadiness === option.value
+    onUpdateReview(output.id, {
+      readiness: isSelected ? null : option.value,
+      score: isSelected ? null : option.score,
+    })
+  }
+
+  const handleRickReasonBlur = (event) => {
+    if (!onUpdateReview) return
+    onUpdateReview(output.id, { reason: event.target.value })
+  }
+
+  const handleRatingClick = (score) => {
+    if (onUpdateReview) {
+      onUpdateReview(output.id, { score: selectedRating === score ? null : score })
+      return
+    }
+    onUpdateFeedback?.(output.id, selectedRating === score ? null : score)
+  }
 
   return (
     <div className="v3-viewer">
@@ -1139,6 +1202,50 @@ export default function ImageViewer({
                     )}
                   </div>
                 )}
+                {(rickReview.readiness || operatorReview) && (
+                  <div className={`v3-calibration-card ${calibrationAgreement ? `v3-calibration-card--${calibrationAgreement}` : ''}`}>
+                    <div className="v3-calibration-row">
+                      <span className="v3-calibration-label">Rick</span>
+                      <span className="v3-calibration-value">
+                        {getReadinessOption(rickReview.readiness)?.label || 'Unlabeled'}
+                        {rickReview.score ? ` · ${rickReview.score}/5` : ''}
+                      </span>
+                    </div>
+                    <div className="v3-calibration-row">
+                      <span className="v3-calibration-label">Claude</span>
+                      <span className="v3-calibration-value">
+                        {operatorReadiness?.label || (operatorReview?.pass === false ? 'Flagged' : 'No label')}
+                        {operatorReview?.score ? ` · ${operatorReview.score}/5` : ''}
+                      </span>
+                    </div>
+                    {calibrationAgreement && (
+                      <div className="v3-calibration-summary">
+                        {calibrationAgreement === 'agree' ? 'Aligned' : calibrationAgreement === 'close' ? 'Close' : 'Disagree'}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {onUpdateReview && (
+                  <div className="v3-readiness-stack">
+                    <div className="v3-toolbar-section-label">Readiness</div>
+                    <div className="v3-readiness-options">
+                      {READINESS_OPTIONS.map((option) => {
+                        const isSelected = selectedReadiness === option.value
+                        return (
+                          <button
+                            key={option.value}
+                            className={`v3-readiness-btn v3-readiness-btn--${option.value}${isSelected ? ' v3-readiness-btn--selected' : ''}`}
+                            onClick={() => handleReadinessClick(option)}
+                            title={option.title}
+                            type="button"
+                          >
+                            {option.shortLabel}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
                 {onUpdateFeedback && (
                   <div className="v3-rating-stack">
                     <div className="v3-toolbar-section-label">Rate this image</div>
@@ -1150,7 +1257,7 @@ export default function ImageViewer({
                           <button
                             key={n}
                             className={`v3-rating-face v3-rating-face--tone-${n}${isExact ? ' v3-rating-face--selected' : ''}`}
-                            onClick={() => onUpdateFeedback(output.id, selectedRating === n ? null : n)}
+                            onClick={() => handleRatingClick(n)}
                             title={['Bad — reject this output', 'Weak — major issues', 'OK — usable but needs work', 'Good — minor tweaks needed', 'Great — ready to use'][n - 1]}
                             data-label={labels[n - 1]}
                           >
@@ -1160,6 +1267,18 @@ export default function ImageViewer({
                       })}
                     </div>
                   </div>
+                )}
+                {onUpdateReview && (
+                  <label className="v3-review-reason-box">
+                    <span className="v3-toolbar-section-label">Rick reason</span>
+                    <textarea
+                      className="v3-review-reason-input"
+                      defaultValue={rickReview.reason || ''}
+                      onBlur={handleRickReasonBlur}
+                      placeholder="Why this is ready, cleanup, inspiration, wrong, or reject"
+                      rows={3}
+                    />
+                  </label>
                 )}
                 {onMarkWinner && (
                   <button

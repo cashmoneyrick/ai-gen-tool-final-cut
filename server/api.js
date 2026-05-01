@@ -482,11 +482,15 @@ async function handleOperatorAnnotation(req, res) {
     return sendError(res, 400, 'Invalid JSON body')
   }
 
-  const { outputId, pass, note, category } = body
+  const { outputId, pass, note, category, readiness, score, reason } = body
   if (!outputId) return sendError(res, 400, 'outputId is required')
 
   const output = storage.get('outputs', outputId)
   if (!output) return sendError(res, 404, 'Output not found')
+
+  const operatorReason = String(reason || note || '')
+  const operatorScore = Number.isFinite(Number(score)) ? Number(score) : null
+  const operatorReadiness = readiness ? String(readiness) : null
 
   storage.put('outputs', {
     ...output,
@@ -494,6 +498,14 @@ async function handleOperatorAnnotation(req, res) {
       pass: Boolean(pass),
       note: String(note || ''),
       category: String(category || 'other'),
+    },
+    operatorReview: {
+      pass: Boolean(pass),
+      readiness: operatorReadiness,
+      score: operatorScore,
+      reason: operatorReason,
+      category: String(category || 'other'),
+      updatedAt: Date.now(),
     },
   })
 

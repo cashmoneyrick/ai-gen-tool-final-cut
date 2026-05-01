@@ -1,5 +1,11 @@
 # DEVLOG.md
 
+## 2026-05-01 — Review Calibration MVP
+
+- Added Rick readiness labels so “usable” can mean ready as-is, cleanup, inspiration, wrong direction, or reject.
+- Separated Rick review data from operator review data on outputs while keeping legacy feedback scores compatible.
+- Added a compact Rick-vs-Claude comparison in the review dock to expose agreement and disagreement during image review.
+
 ## 2026-04
 
 - Added repo-level mode separation between `BUILDER MODE` and `OPERATOR MODE`.

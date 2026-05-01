@@ -805,6 +805,35 @@ export default function App() {
     )
   }, [activeProjectId, activeSessionId, recoverFromPersistenceError])
 
+  const handleUpdateOutputReview = useCallback((outputId, patch) => {
+    const now = Date.now()
+    setOutputs((prev) =>
+      prev.map((output) => {
+        if (output.id !== outputId) return output
+        const previousReview = output.rickReview || {}
+        const nextReview = {
+          ...previousReview,
+          ...patch,
+          updatedAt: now,
+        }
+        const nextFeedback = Object.prototype.hasOwnProperty.call(patch, 'score')
+          ? patch.score
+          : output.feedback
+        const updated = {
+          ...output,
+          rickReview: nextReview,
+          feedback: nextFeedback,
+        }
+        if (activeProjectId && activeSessionId) {
+          persist.saveOutput(activeProjectId, activeSessionId, updated).catch((error) => {
+            recoverFromPersistenceError('output review save', error)
+          })
+        }
+        return updated
+      })
+    )
+  }, [activeProjectId, activeSessionId, recoverFromPersistenceError])
+
   const handleUpdateOutputNotes = useCallback(async (outputId, notesKeep, notesFix) => {
     const existingOutput = outputsRef.current.find((output) => output.id === outputId)
     if (!existingOutput || !activeProjectId || !activeSessionId) return
@@ -914,6 +943,7 @@ export default function App() {
           onReorderRefs={handleReorderRefs}
           onUpdateRefNotes={handleUpdateRefNotes}
           onUpdateOutputFeedback={handleUpdateOutputFeedback}
+          onUpdateOutputReview={handleUpdateOutputReview}
           onUpdateFeedbackNotes={handleUpdateOutputNotes}
           onSwitchProject={handleSwitchProject}
           onCreateProject={handleCreateProject}

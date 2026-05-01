@@ -86,6 +86,7 @@ export default function ReviewConsole({
   onReorderRefs,
   onUpdateRefNotes,
   onUpdateOutputFeedback,
+  onUpdateOutputReview,
   onUpdateFeedbackNotes,
   onSwitchProject,
   onCreateProject,
@@ -398,6 +399,7 @@ export default function ReviewConsole({
               totalCount={orderedOutputs.length}
               onNavigate={setCurrentIndex}
               onUpdateFeedback={onUpdateOutputFeedback}
+              onUpdateReview={onUpdateOutputReview}
               onUpdateFeedbackNotes={onUpdateFeedbackNotes}
               onMarkWinner={onMarkWinner}
               onCorrectAnnotation={handleCorrectAnnotation}
