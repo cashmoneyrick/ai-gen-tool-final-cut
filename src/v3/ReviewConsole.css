@@ -3111,34 +3111,6 @@
   letter-spacing: 0.04em;
 }
 
-.v3-silent-judge-row {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 8px;
-  border: 1px solid var(--v3-border-subtle);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.v3-silent-judge-copy {
-  color: var(--v3-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.v3-silent-judge-toggle {
-  border: none;
-  background: transparent;
-  color: var(--v3-accent);
-  font-family: var(--v3-font);
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
 .v3-batch-lesson-card {
   width: 100%;
   display: flex;

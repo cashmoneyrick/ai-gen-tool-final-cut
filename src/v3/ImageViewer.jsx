@@ -234,7 +234,6 @@ export default function ImageViewer({
   const [fullscreenOpen, setFullscreenOpen] = useState(false)
   const [insightsOpen, setInsightsOpen] = useState(false)
   const [lessonSaveState, setLessonSaveState] = useState('idle')
-  const [showOperatorReview, setShowOperatorReview] = useState(false)
   const [dockPlacement, setDockPlacement] = useState(readStoredDockPlacement)
   const [dockPosition, setDockPosition] = useState(readStoredDockPosition)
   const [promptSectionsDraft, setPromptSectionsDraft] = useState(() =>
@@ -930,14 +929,6 @@ export default function ImageViewer({
     onUpdateReview(output.id, { reason: event.target.value })
   }
 
-  const handleRatingClick = (score) => {
-    if (onUpdateReview) {
-      onUpdateReview(output.id, { score: selectedRating === score ? null : score })
-      return
-    }
-    onUpdateFeedback?.(output.id, selectedRating === score ? null : score)
-  }
-
   const handleSaveBatchLesson = () => {
     if (!onSaveBatchLesson || !batchLesson.hasSignal) return
     onSaveBatchLesson(batchLesson.text, 'preference', null)
@@ -1202,19 +1193,7 @@ export default function ImageViewer({
                 </div>
               </div>
               <div className="v3-toolbar-primary v3-toolbar-primary--rail">
-                {operatorReview && (
-                  <div className="v3-silent-judge-row">
-                    <span className="v3-silent-judge-copy">Claude review hidden</span>
-                    <button
-                      className="v3-silent-judge-toggle"
-                      onClick={() => setShowOperatorReview((value) => !value)}
-                      type="button"
-                    >
-                      {showOperatorReview ? 'Hide Claude' : 'Reveal Claude'}
-                    </button>
-                  </div>
-                )}
-                {showOperatorReview && output.operatorAnnotation && !output.operatorAnnotation.pass && (
+                {output.operatorAnnotation && !output.operatorAnnotation.pass && (
                   <div className="v3-annotation-flag">
                     <span className="v3-annotation-flag-text">
                       ⚠ Claude flagged: {output.operatorAnnotation.note}
@@ -1232,7 +1211,7 @@ export default function ImageViewer({
                     )}
                   </div>
                 )}
-                {showOperatorReview && (rickReview.readiness || operatorReview) && (
+                {(rickReview.readiness || operatorReview) && (
                   <div className={`v3-calibration-card ${calibrationAgreement ? `v3-calibration-card--${calibrationAgreement}` : ''}`}>
                     <div className="v3-calibration-row">
                       <span className="v3-calibration-label">Rick</span>
@@ -1257,7 +1236,7 @@ export default function ImageViewer({
                 )}
                 {onUpdateReview && (
                   <div className="v3-readiness-stack">
-                    <div className="v3-toolbar-section-label">Readiness</div>
+                    <div className="v3-toolbar-section-label">Your rating</div>
                     <div className="v3-readiness-options">
                       {READINESS_OPTIONS.map((option) => {
                         const isSelected = selectedReadiness === option.value
@@ -1276,28 +1255,6 @@ export default function ImageViewer({
                     </div>
                   </div>
                 )}
-                {onUpdateFeedback && (
-                  <div className="v3-rating-stack">
-                    <div className="v3-toolbar-section-label">Rate this image</div>
-                    <div className="v3-rating-faces">
-                      {[1, 2, 3, 4, 5].map((n) => {
-                        const isExact = selectedRating === n
-                        const labels = ['Bad', 'Weak', 'OK', 'Good', 'Great']
-                        return (
-                          <button
-                            key={n}
-                            className={`v3-rating-face v3-rating-face--tone-${n}${isExact ? ' v3-rating-face--selected' : ''}`}
-                            onClick={() => handleRatingClick(n)}
-                            title={['Bad — reject this output', 'Weak — major issues', 'OK — usable but needs work', 'Good — minor tweaks needed', 'Great — ready to use'][n - 1]}
-                            data-label={labels[n - 1]}
-                          >
-                            {RATING_FACES[n - 1]}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
                 {onUpdateReview && (
                   <label className="v3-review-reason-box">
                     <span className="v3-toolbar-section-label">Rick reason</span>
@@ -1310,26 +1267,25 @@ export default function ImageViewer({
                     />
                   </label>
                 )}
-                {onSaveBatchLesson && (
+                {onSaveBatchLesson && batchLesson.hasSignal && (
                   <div className="v3-batch-lesson-card">
                     <div className="v3-batch-lesson-head">
-                      <span className="v3-toolbar-section-label">Batch lesson</span>
+                      <span className="v3-toolbar-section-label">Feedback pattern</span>
                       <span className="v3-batch-lesson-meta">
                         {batchLesson.stats.reviewed} reviewed
                         {batchLesson.usableRate !== null ? ` · ${batchLesson.usableRate}% useful` : ''}
                       </span>
                     </div>
                     <div className="v3-batch-lesson-text">
-                      {batchLesson.hasSignal ? batchLesson.text : 'Rate a few images and add short reasons. I will turn them into next-run guidance.'}
+                      {batchLesson.text}
                     </div>
                     <button
                       className={`v3-tb-btn v3-batch-lesson-save ${lessonSaveState === 'saved' ? 'v3-tb-btn--success' : ''}`}
                       onClick={handleSaveBatchLesson}
-                      disabled={!batchLesson.hasSignal}
                       type="button"
                       title="Save this distilled lesson so the operator can use it next time"
                     >
-                      <span>{lessonSaveState === 'saved' ? 'Saved' : 'Save Batch Lesson'}</span>
+                      <span>{lessonSaveState === 'saved' ? 'Saved' : 'Save Feedback Pattern'}</span>
                     </button>
                   </div>
                 )}

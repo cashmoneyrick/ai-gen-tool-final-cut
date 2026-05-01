@@ -17,6 +17,7 @@
 - Added silent judge behavior so Claude/operator feedback is hidden until Rick chooses to reveal it.
 - Added batch lesson distillation from Rick readiness labels and reasons, with a save action in the review dock.
 - Wired saved project lessons into operator context and prompt assembly so future generations can use Rick's feedback as next-run guidance.
+- Simplified the review dock after browser feedback: Claude feedback now shows by default, Rick uses one readiness rating control, and feedback-pattern saving only appears after reviewed images exist.
 
 ## 2026-04
 
