@@ -8,6 +8,7 @@ build/
 .vite/
 .claude/
 .worktrees/
+.superpowers/
 
 # Data files — outputs.json contains base64 image data and exceeds GitHub's 100MB limit
 data/*.json
