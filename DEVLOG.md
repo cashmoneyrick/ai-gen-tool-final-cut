@@ -19,6 +19,7 @@
 - Wired saved project lessons into operator context and prompt assembly so future generations can use Rick's feedback as next-run guidance.
 - Simplified the review dock after browser feedback: Claude feedback now shows by default, Rick uses one readiness rating control, and feedback-pattern saving only appears after reviewed images exist.
 - Made review ratings clearer with full labels and cleaned up thumbnail badges into a single readable status chip plus a small notes marker.
+- Evened out the thumbnail batch highlight spacing so the colored background wraps thumbnails symmetrically.
 
 ## 2026-04
 
