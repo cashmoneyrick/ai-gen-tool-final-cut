@@ -3,7 +3,6 @@ import HoverZoom, { FullscreenZoom } from './HoverZoom'
 import { MetadataBadge, MetadataPopover } from './MetadataPanel'
 import { getImageUrl } from '../utils/imageUrl.js'
 import { getFeedbackDisplay, normalizeFeedback } from '../reviewFeedback.js'
-import { buildBatchLesson } from '../feedback/batchLessons.js'
 import {
   PROMPT_SECTION_LABELS,
   PROMPT_SECTION_ORDER,
@@ -198,7 +197,6 @@ export default function ImageViewer({
   onUpdateFeedback,
   onUpdateReview,
   onUseAsRef,
-  onSaveBatchLesson,
   onMarkWinner,
   isWinner,
   outputs,
@@ -233,7 +231,6 @@ export default function ImageViewer({
   const [imageSizeMode, setImageSizeMode] = useState('fit')
   const [fullscreenOpen, setFullscreenOpen] = useState(false)
   const [insightsOpen, setInsightsOpen] = useState(false)
-  const [lessonSaveState, setLessonSaveState] = useState('idle')
   const [dockPlacement, setDockPlacement] = useState(readStoredDockPlacement)
   const [dockPosition, setDockPosition] = useState(readStoredDockPosition)
   const [promptSectionsDraft, setPromptSectionsDraft] = useState(() =>
@@ -248,10 +245,6 @@ export default function ImageViewer({
   const reviewOutputs = useMemo(
     () => outputs?.filter((item) => !isPromptPreviewOutput(item)) || [],
     [outputs]
-  )
-  const batchLesson = useMemo(
-    () => buildBatchLesson(reviewOutputs),
-    [reviewOutputs]
   )
   const promptDraft = useMemo(
     () => renderStructuredPrompt(promptSectionsDraft),
@@ -929,13 +922,6 @@ export default function ImageViewer({
     onUpdateReview(output.id, { reason: event.target.value })
   }
 
-  const handleSaveBatchLesson = () => {
-    if (!onSaveBatchLesson || !batchLesson.hasSignal) return
-    onSaveBatchLesson(batchLesson.text, 'preference', null)
-    setLessonSaveState('saved')
-    window.setTimeout(() => setLessonSaveState('idle'), 1800)
-  }
-
   return (
     <div className="v3-viewer">
       <div
@@ -1267,28 +1253,6 @@ export default function ImageViewer({
                       rows={3}
                     />
                   </label>
-                )}
-                {onSaveBatchLesson && batchLesson.hasSignal && (
-                  <div className="v3-batch-lesson-card">
-                    <div className="v3-batch-lesson-head">
-                      <span className="v3-toolbar-section-label">Feedback pattern</span>
-                      <span className="v3-batch-lesson-meta">
-                        {batchLesson.stats.reviewed} reviewed
-                        {batchLesson.usableRate !== null ? ` · ${batchLesson.usableRate}% useful` : ''}
-                      </span>
-                    </div>
-                    <div className="v3-batch-lesson-text">
-                      {batchLesson.text}
-                    </div>
-                    <button
-                      className={`v3-tb-btn v3-batch-lesson-save ${lessonSaveState === 'saved' ? 'v3-tb-btn--success' : ''}`}
-                      onClick={handleSaveBatchLesson}
-                      type="button"
-                      title="Save this distilled lesson so the operator can use it next time"
-                    >
-                      <span>{lessonSaveState === 'saved' ? 'Saved' : 'Save Feedback Pattern'}</span>
-                    </button>
-                  </div>
                 )}
                 {onMarkWinner && (
                   <button

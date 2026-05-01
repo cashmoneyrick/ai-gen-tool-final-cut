@@ -3128,40 +3128,6 @@
   letter-spacing: 0.04em;
 }
 
-.v3-batch-lesson-card {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 7px;
-  border: 1px solid rgba(0, 113, 227, 0.22);
-  background: rgba(0, 113, 227, 0.055);
-}
-
-.v3-batch-lesson-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.v3-batch-lesson-meta {
-  color: var(--v3-text-muted);
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.v3-batch-lesson-text {
-  color: var(--v3-text-secondary);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.v3-batch-lesson-save {
-  justify-content: center;
-}
-
 .v3-feedback-notes {
   display: flex;
   flex-direction: column;

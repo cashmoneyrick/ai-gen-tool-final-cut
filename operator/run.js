@@ -32,6 +32,7 @@ import { generateFromVertexAI } from '../server/gemini.js'
 import { ensureVertexAIAuthReady, getVertexAIConfigError } from '../server/vertex-auth.js'
 import { buildIterationContext, buildCrossSessionContext } from '../src/planning/iterationContext.js'
 import { getEffectiveFeedback, normalizeFeedback, getFeedbackDisplay } from '../src/reviewFeedback.js'
+import { buildBatchLesson } from '../src/feedback/batchLessons.js'
 import { buildOperatorContext } from './context.js'
 import { generateProjectBrief, generateGlobalState, readBrief, readGlobalState, generateRecommendations } from './analyze.js'
 import { buildStructuredPrompt, buildVariationPrompt, build3DRenderPrompt, buildOnHandPrompt } from './promptBuilder.js'
@@ -364,7 +365,7 @@ const activeMemories = allMemories
     return (b.createdAt || 0) - (a.createdAt || 0)
   })
   .slice(0, 12) // cap matches sourcePipeline.js CAPS.memory
-const activeProjectLessons = storage.getAllByIndex('projectLessons', 'projectId', projectId)
+const savedProjectLessons = storage.getAllByIndex('projectLessons', 'projectId', projectId)
   .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
   .slice(0, 8)
 
@@ -402,6 +403,16 @@ if (winnerOutputsForRef.length > 0) {
 const orderedOutputs = (project.outputIds || session.outputIds || []).map((id) => outputMap.get(id)).filter(Boolean)
 const orderedWinners = (project.winnerIds || session.winnerIds || []).map((id) => winnerMap.get(id)).filter(Boolean)
 const orderedLocked = (session.lockedElementIds || []).map((id) => lockedMap.get(id)).filter(Boolean)
+const currentReviewLesson = buildBatchLesson(orderedOutputs)
+const activeProjectLessons = [
+  ...(currentReviewLesson.hasSignal && currentReviewLesson.stats.reviewed >= 3 ? [{
+    id: 'current-rick-review-pattern',
+    signal: currentReviewLesson.avoid.length > 0 ? 'correction' : 'preference',
+    text: currentReviewLesson.text,
+    createdAt: Date.now(),
+  }] : []),
+  ...savedProjectLessons,
+].slice(0, 8)
 
 // Refs marked for sending
 let sendingRefs = allRefs.filter((r) => r.send)

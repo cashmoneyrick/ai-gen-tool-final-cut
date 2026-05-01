@@ -978,7 +978,6 @@ export default function App() {
           workflowSummary={workflowSummary}
           iterationContext={iterationContext}
           memoryStatus={systemMemory.status}
-          onSaveBatchLesson={systemMemory.handlers.saveLesson}
           projectBrief={projectBrief}
           promptPreviewMode={promptPreviewMode}
           onTogglePromptPreview={handleTogglePromptPreview}
