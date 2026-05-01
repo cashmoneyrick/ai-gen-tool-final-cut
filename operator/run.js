@@ -364,6 +364,9 @@ const activeMemories = allMemories
     return (b.createdAt || 0) - (a.createdAt || 0)
   })
   .slice(0, 12) // cap matches sourcePipeline.js CAPS.memory
+const activeProjectLessons = storage.getAllByIndex('projectLessons', 'projectId', projectId)
+  .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  .slice(0, 8)
 
 // Order by session's ID arrays (same as UI does)
 const outputMap = new Map(learningOutputs.map((o) => [o.id, o]))
@@ -458,7 +461,7 @@ if (crossSessionLessons.length > 0) {
   crossSessionPreamble = `[Prior session lessons: ${crossSessionLessons.map((l) => l.text).join('; ')}]`
 }
 
-writeProgress('prompt', `Assembling prompt — ${activeMemories.length} memories, ${orderedLocked.filter(e => e.enabled).length} locked, ${sendingRefs.length} refs`)
+writeProgress('prompt', `Assembling prompt — ${activeMemories.length} memories, ${activeProjectLessons.length} lessons, ${orderedLocked.filter(e => e.enabled).length} locked, ${sendingRefs.length} refs`)
 // --- Assemble prompt through the structured builder ---
 
 // Precedence: CLI flag > decision file > pipeline mode > session state
@@ -498,6 +501,7 @@ const promptBuild = buildStructuredPrompt({
   activeLockedElements: activeLockedTexts,
   sendingRefs,
   activeMemories,
+  activeProjectLessons,
   orderedOutputs,
   orderedWinners,
   iterationContext,

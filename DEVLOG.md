@@ -6,6 +6,12 @@
 - Separated Rick review data from operator review data on outputs while keeping legacy feedback scores compatible.
 - Added a compact Rick-vs-Claude comparison in the review dock to expose agreement and disagreement during image review.
 
+## 2026-05-01 — Feedback Learning Loop MVP
+
+- Added silent judge behavior so Claude/operator feedback is hidden until Rick chooses to reveal it.
+- Added batch lesson distillation from Rick readiness labels and reasons, with a save action in the review dock.
+- Wired saved project lessons into operator context and prompt assembly so future generations can use Rick's feedback as next-run guidance.
+
 ## 2026-04
 
 - Added repo-level mode separation between `BUILDER MODE` and `OPERATOR MODE`.

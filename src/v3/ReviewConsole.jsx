@@ -99,6 +99,7 @@ export default function ReviewConsole({
   workflowSummary,
   iterationContext,
   memoryStatus,
+  onSaveBatchLesson,
   projectBrief,
   promptPreviewMode,
   onTogglePromptPreview,
@@ -401,6 +402,7 @@ export default function ReviewConsole({
               onUpdateFeedback={onUpdateOutputFeedback}
               onUpdateReview={onUpdateOutputReview}
               onUpdateFeedbackNotes={onUpdateFeedbackNotes}
+              onSaveBatchLesson={onSaveBatchLesson}
               onMarkWinner={onMarkWinner}
               onCorrectAnnotation={handleCorrectAnnotation}
               isWinner={isCurrentWinner}
