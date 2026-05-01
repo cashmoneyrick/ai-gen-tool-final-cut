@@ -8,6 +8,11 @@ import StudioIntelligencePanel from './StudioIntelligencePanel'
 import { formatCost } from './costUtils'
 import { getImageUrl } from '../utils/imageUrl.js'
 import { normalizeFeedback } from '../reviewFeedback.js'
+import {
+  findOutputIndexById,
+  getNearbyImageUrls,
+  resolveSelectedOutputId,
+} from './reviewNavigation.js'
 import './ReviewConsole.css'
 import ActionBar from './ActionBar'
 import { AVAILABLE_IMAGE_MODELS } from '../modelConfig'
@@ -131,7 +136,8 @@ export default function ReviewConsole({
     [orderedOutputs]
   )
 
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const [selectedOutputId, setSelectedOutputId] = useState(null)
+  const [fallbackIndex, setFallbackIndex] = useState(0)
   const [rotations, setRotations] = useState({})
   const [pickerOpen, setPickerOpen] = useState(false)
   const [loadingPreview, setLoadingPreview] = useState(false)
@@ -154,20 +160,56 @@ export default function ReviewConsole({
       .catch(() => {})
   }, [activeProjectId, orderedOutputs.length]) // re-fetch when outputs change
 
+  const resolvedSelectedOutputId = useMemo(
+    () => resolveSelectedOutputId(orderedOutputs, selectedOutputId, fallbackIndex),
+    [orderedOutputs, selectedOutputId, fallbackIndex]
+  )
+
   const safeCurrentIndex = orderedOutputs.length
-    ? Math.min(currentIndex, orderedOutputs.length - 1)
+    ? Math.max(0, findOutputIndexById(orderedOutputs, resolvedSelectedOutputId))
     : 0
 
   const currentOutput = orderedOutputs[safeCurrentIndex] || null
+
+  const selectOutputByIndex = useCallback((index) => {
+    if (!orderedOutputs.length) {
+      setSelectedOutputId(null)
+      setFallbackIndex(0)
+      return
+    }
+    const nextIndex = Math.max(0, Math.min(index, orderedOutputs.length - 1))
+    setFallbackIndex(nextIndex)
+    setSelectedOutputId(orderedOutputs[nextIndex]?.id || null)
+  }, [orderedOutputs])
 
   useEffect(() => {
     if (!requestedOutputId || !orderedOutputs.length) return
     const nextIndex = orderedOutputs.findIndex((output) => output.id === requestedOutputId)
     if (nextIndex >= 0) {
-      setCurrentIndex(nextIndex)
-      onConsumeRequestedOutputId?.()
+      const timer = window.setTimeout(() => {
+        setFallbackIndex(nextIndex)
+        setSelectedOutputId(requestedOutputId)
+        onConsumeRequestedOutputId?.()
+      }, 0)
+      return () => window.clearTimeout(timer)
     }
   }, [requestedOutputId, orderedOutputs, onConsumeRequestedOutputId])
+
+  useEffect(() => {
+    if (typeof Image === 'undefined') return
+    const urls = getNearbyImageUrls(orderedOutputs, safeCurrentIndex, 3)
+    const preloads = urls.map((url) => {
+      const image = new Image()
+      image.src = url
+      return image
+    })
+    return () => {
+      preloads.forEach((image) => {
+        image.onload = null
+        image.onerror = null
+      })
+    }
+  }, [orderedOutputs, safeCurrentIndex])
 
   const isCurrentWinner = useMemo(() => {
     if (!currentOutput || !winners) return false
@@ -178,12 +220,12 @@ export default function ReviewConsole({
   useEffect(() => {
     const handler = (e) => {
       if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return
-      if (e.key === 'ArrowLeft' && safeCurrentIndex > 0) setCurrentIndex((i) => i - 1)
-      else if (e.key === 'ArrowRight' && safeCurrentIndex < orderedOutputs.length - 1) setCurrentIndex((i) => i + 1)
+      if (e.key === 'ArrowLeft' && safeCurrentIndex > 0) selectOutputByIndex(safeCurrentIndex - 1)
+      else if (e.key === 'ArrowRight' && safeCurrentIndex < orderedOutputs.length - 1) selectOutputByIndex(safeCurrentIndex + 1)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [safeCurrentIndex, orderedOutputs.length])
+  }, [safeCurrentIndex, orderedOutputs.length, selectOutputByIndex])
 
   const handleOutputSignal = useCallback(async (outputId, signalType) => {
     try {
@@ -249,7 +291,6 @@ export default function ReviewConsole({
   const compactStatusLabel = `${workflowSummary?.outputCount || 0} outputs`
     + (workflowSummary?.winnerCount ? ` · ${workflowSummary.winnerCount} winners` : '')
   const projectCostLabel = projectCost !== null && projectCost > 0 ? formatCost(projectCost) : null
-  const hasOutputs = orderedOutputs.length > 0
   const hasStripOutputs = orderedStripOutputs.length > 0
   const sessionDecision = useMemo(() => {
     if (!reviewableOutputs.length) return null
@@ -381,7 +422,8 @@ export default function ReviewConsole({
                 onNavigate={(output) => {
                   const localIndex = orderedOutputs.findIndex((item) => item.id === output.id)
                   if (localIndex >= 0) {
-                    setCurrentIndex(localIndex)
+                    setFallbackIndex(localIndex)
+                    setSelectedOutputId(output.id)
                     return
                   }
                   onOpenOutput?.(output)
@@ -398,7 +440,7 @@ export default function ReviewConsole({
               outputs={orderedOutputs}
               currentIndex={safeCurrentIndex}
               totalCount={orderedOutputs.length}
-              onNavigate={setCurrentIndex}
+              onNavigate={selectOutputByIndex}
               onUpdateFeedback={onUpdateOutputFeedback}
               onUpdateReview={onUpdateOutputReview}
               onUpdateFeedbackNotes={onUpdateFeedbackNotes}
