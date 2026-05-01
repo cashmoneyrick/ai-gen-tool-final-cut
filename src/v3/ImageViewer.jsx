@@ -58,11 +58,11 @@ const RATING_FACES = [
 ]
 
 const READINESS_OPTIONS = [
-  { value: 'ready', label: 'Ready', shortLabel: 'Ready', score: 5, title: 'Ready as-is' },
-  { value: 'cleanup', label: 'Cleanup', shortLabel: 'Clean', score: 4, title: 'Good design that needs cleanup' },
-  { value: 'inspiration', label: 'Inspo', shortLabel: 'Inspo', score: 3, title: 'Useful as design inspiration' },
-  { value: 'wrong', label: 'Wrong', shortLabel: 'Wrong', score: 2, title: 'Technically okay, wrong direction' },
-  { value: 'reject', label: 'Reject', shortLabel: 'Reject', score: 1, title: 'Reject this output' },
+  { value: 'ready', label: 'Ready to use', shortLabel: 'Ready', hint: 'use as-is', score: 5, title: 'Ready as-is' },
+  { value: 'cleanup', label: 'Needs cleanup', shortLabel: 'Clean', hint: 'good idea, fix details', score: 4, title: 'Good design that needs cleanup' },
+  { value: 'inspiration', label: 'Inspiration only', shortLabel: 'Inspo', hint: 'borrow the idea', score: 3, title: 'Useful as design inspiration' },
+  { value: 'wrong', label: 'Wrong direction', shortLabel: 'Wrong', hint: 'not the brief', score: 2, title: 'Technically okay, wrong direction' },
+  { value: 'reject', label: 'Reject', shortLabel: 'Reject', hint: 'do not reuse', score: 1, title: 'Reject this output' },
 ]
 
 function getReadinessOption(value) {
@@ -1248,7 +1248,8 @@ export default function ImageViewer({
                             title={option.title}
                             type="button"
                           >
-                            {option.shortLabel}
+                            <span className="v3-readiness-btn-label">{option.label}</span>
+                            <span className="v3-readiness-btn-hint">{option.hint}</span>
                           </button>
                         )
                       })}

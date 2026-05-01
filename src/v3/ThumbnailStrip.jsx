@@ -23,6 +23,24 @@ function isPromptPreviewOutput(output) {
   return output?.outputKind === 'prompt-preview'
 }
 
+const READINESS_BADGES = {
+  ready: { label: 'Ready', tone: 'high' },
+  cleanup: { label: 'Clean', tone: 'high' },
+  inspiration: { label: 'Inspo', tone: 'mid' },
+  wrong: { label: 'Wrong', tone: 'low' },
+  reject: { label: 'Reject', tone: 'low' },
+}
+
+function getReviewBadge(output) {
+  const readiness = output?.rickReview?.readiness
+  if (readiness && READINESS_BADGES[readiness]) return READINESS_BADGES[readiness]
+
+  const rating = normalizeFeedback(output?.feedback)
+  if (rating === null) return null
+  const tone = rating <= 2 ? 'low' : rating === 3 ? 'mid' : 'high'
+  return { label: String(rating), tone }
+}
+
 export default function ThumbnailStrip({ outputs, currentOutputId, onNavigate, winners }) {
   const stripRef = useRef(null)
   const activeRef = useRef(null)
@@ -106,6 +124,8 @@ export default function ThumbnailStrip({ outputs, currentOutputId, onNavigate, w
           >
             {group.items.map((output) => {
               const isActive = output.id === currentOutputId
+              const reviewBadge = getReviewBadge(output)
+              const hasNotes = Boolean(output.notesKeep?.trim() || output.notesFix?.trim())
               return (
                 <button
                   key={output.id}
@@ -132,21 +152,12 @@ export default function ThumbnailStrip({ outputs, currentOutputId, onNavigate, w
                       </svg>
                     </span>
                   )}
-                  {(() => {
-                    const rating = normalizeFeedback(output.feedback)
-                    if (rating !== null) {
-                      const ratingTone = rating <= 2 ? 'low' : rating === 3 ? 'mid' : 'high'
-                      return (
-                        <span className={`v3-thumb-rating v3-thumb-rating--${ratingTone}`}>
-                          {rating}
-                        </span>
-                      )
-                    }
-                    return null
-                  })()}
-                  {(output.notesKeep?.trim() || output.notesFix?.trim()) && (
-                    <span className={`v3-thumb-badge ${output.notesKeep?.trim() && output.notesFix?.trim() ? 'v3-thumb-badge-mixed' : output.notesKeep?.trim() ? 'v3-thumb-badge-up' : 'v3-thumb-badge-down'}`}>
-                      {output.notesKeep?.trim() && output.notesFix?.trim() ? '\u2215' : output.notesKeep?.trim() ? '\u2713' : '\u2717'}
+                  {hasNotes && (
+                    <span className="v3-thumb-note-dot" aria-label="Has notes" />
+                  )}
+                  {reviewBadge && (
+                    <span className={`v3-thumb-review-chip v3-thumb-review-chip--${reviewBadge.tone}`}>
+                      {reviewBadge.label}
                     </span>
                   )}
                 </button>
