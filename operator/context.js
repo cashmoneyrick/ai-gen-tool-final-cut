@@ -21,6 +21,7 @@ import { DEFAULT_IMAGE_MODEL } from '../src/modelConfig.js'
 const MAX_RECENT_OUTPUTS = 12
 const MAX_WINNERS = 10
 const MAX_MEMORIES = 12
+const MAX_PROJECT_LESSONS = 8
 const MAX_PROMPT_PREVIEW = 200
 
 function truncate(str, max = MAX_PROMPT_PREVIEW) {
@@ -134,6 +135,9 @@ export function buildOperatorContext(projectId) {
       return b.createdAt - a.createdAt
     })
     .slice(0, MAX_MEMORIES)
+  const projectLessons = storage.getAllByIndex('projectLessons', 'projectId', resolvedProjectId)
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .slice(0, MAX_PROJECT_LESSONS)
 
   // Build context
   return {
@@ -192,6 +196,12 @@ export function buildOperatorContext(projectId) {
       type: m.type,
       text: truncate(m.text),
       pinned: m.pinned,
+    })),
+    projectLessons: projectLessons.map((lesson) => ({
+      id: lesson.id,
+      signal: lesson.signal || 'preference',
+      text: truncate(lesson.text, 260),
+      createdAt: lesson.createdAt || 0,
     })),
     feedbackSummary,
     stats: {

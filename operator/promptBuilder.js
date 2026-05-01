@@ -39,6 +39,7 @@ const SOURCE_PRIORITY = {
   refAnalysis: 805,
   batchNote: 780,
   outputNote: 760,
+  projectLesson: 740,
   memoryPinned: 700,
   briefManual: 660,
   briefPattern: 620,
@@ -459,6 +460,7 @@ export function buildStructuredPrompt({
   activeLockedElements = [],
   sendingRefs = [],
   activeMemories = [],
+  activeProjectLessons = [],
   orderedOutputs = [],
   orderedWinners = [],
   iterationContext = null,
@@ -654,6 +656,26 @@ export function buildStructuredPrompt({
       defaultSection,
       createdAt: memory.createdAt || 0,
       meta: { memoryId: memory.id, memoryType: memory.type },
+    })
+  }
+
+  // --- Project lessons distilled from Rick's batch reviews ---
+  for (const lesson of activeProjectLessons || []) {
+    const clean = normalizeText(lesson.text)
+    if (!clean) continue
+    const lower = clean.toLowerCase()
+    const isCorrective = lesson.signal === 'failure'
+      || lesson.signal === 'correction'
+      || lower.includes('avoid next time')
+      || lower.includes('reject')
+      || lower.includes('wrong')
+    addSectionTextCandidates(candidates, clean, {
+      sourceType: 'projectLesson',
+      role: isCorrective ? 'negative' : 'preserve',
+      priority: SOURCE_PRIORITY.projectLesson,
+      defaultSection: isCorrective ? 'technical' : classifyPromptSection(clean, 'style'),
+      createdAt: lesson.createdAt || 0,
+      meta: { lessonId: lesson.id, lessonSignal: lesson.signal || 'preference' },
     })
   }
 
