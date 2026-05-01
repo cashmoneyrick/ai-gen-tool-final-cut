@@ -22,6 +22,7 @@
 - Evened out the thumbnail batch highlight spacing so the colored background wraps thumbnails symmetrically.
 - Moved the feedback-pattern helper out of Rick's review UI and into the operator flow so lessons can be used automatically without adding another visible task.
 - Added automatic category memory distillation so repeated Rick feedback can carry into future projects without a visible review task.
+- Added the Phase 5 pipeline plan to tracked docs and kept generated image outputs out of Git.
 
 ## 2026-04
 
