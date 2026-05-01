@@ -1,5 +1,11 @@
 # DEVLOG.md
 
+## 2026-05-01 — Review Browser Project Strip + Loading
+
+- Changed the review browser direction back to project-scoped navigation so the left strip and main viewer stay on the selected project.
+- Made review selection ID-based so live sync can add new images without shifting the viewed image out from under Rick.
+- Added nearby full-size image preloading for faster big-image switching.
+
 ## 2026-05-01 — Review Calibration MVP
 
 - Added Rick readiness labels so “usable” can mean ready as-is, cleanup, inspiration, wrong direction, or reject.

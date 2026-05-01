@@ -114,6 +114,22 @@ function buildOutputDisplayIdMap(outputs) {
   )
 }
 
+function sortOutputsForReview(outputs) {
+  return [...(outputs || [])].sort((a, b) => {
+    const createdDiff = (b?.createdAt || 0) - (a?.createdAt || 0)
+    if (createdDiff !== 0) return createdDiff
+    return String(b?.id || '').localeCompare(String(a?.id || ''))
+  })
+}
+
+function sortWinnersForReview(winners) {
+  return [...(winners || [])].sort((a, b) => {
+    const createdDiff = (b?.createdAt || 0) - (a?.createdAt || 0)
+    if (createdDiff !== 0) return createdDiff
+    return String(b?.id || '').localeCompare(String(a?.id || ''))
+  })
+}
+
 function buildNextProjectName(projects) {
   const existingNames = new Set((projects || []).map((project) => String(project?.name || '').trim().toLowerCase()))
   if (!existingNames.has('new project')) return 'New Project'
@@ -155,13 +171,13 @@ export default function App() {
   const [imageSearch, setImageSearch] = useState(false)
   const [outputs, setOutputs] = useState([])
   const [projectOutputCatalog, setProjectOutputCatalog] = useState([])
-  const [sitewideOutputCatalog, setSitewideOutputCatalog] = useState([])
-  const [sitewideWinners, setSitewideWinners] = useState([])
+  const [projectWinnerCatalog, setProjectWinnerCatalog] = useState([])
   const [projectBrief, setProjectBrief] = useState(null)
   const [requestedOutputId, setRequestedOutputId] = useState(null)
 
   // Winners state
   const [winners, setWinners] = useState([])
+  const projectOutputCatalogRef = useRef([])
 
   // Locked elements state
   const [lockedElements, setLockedElements] = useState([])
@@ -243,9 +259,8 @@ export default function App() {
 
   const loadProjectIntoState = useCallback(async (projectId, { setAsActive = false, nextProjects = null } = {}) => {
     const requestId = ++loadRequestRef.current
-    const [projectData, sitewideData, state, projectList] = await Promise.all([
+    const [projectData, state, projectList] = await Promise.all([
       persist.loadAllProjectOutputsAndWinners(projectId),
-      persist.loadAllSiteOutputsAndWinners(),
       persist.loadProjectState(projectId),
       nextProjects ? Promise.resolve(nextProjects) : persist.listAllProjects(),
     ])
@@ -257,9 +272,8 @@ export default function App() {
 
     if (setAsActive) setActiveProjectId(projectId)
     setProjects(projectList)
-    setProjectOutputCatalog(projectData.outputs)
-    setSitewideOutputCatalog(sitewideData.outputs)
-    setSitewideWinners(sitewideData.winners)
+    setProjectOutputCatalog(sortOutputsForReview(projectData.outputs))
+    setProjectWinnerCatalog(sortWinnersForReview(projectData.winners))
     applyState(state)
     return true
   }, [applyState, revokeRefListUrls])
@@ -286,6 +300,10 @@ export default function App() {
   useEffect(() => {
     outputsRef.current = outputs
   }, [outputs])
+
+  useEffect(() => {
+    projectOutputCatalogRef.current = projectOutputCatalog
+  }, [projectOutputCatalog])
 
   // --- Revoke preview URLs on unmount ---
   useEffect(() => {
@@ -472,34 +490,34 @@ export default function App() {
     [projectOutputCatalog]
   )
 
-  const outputsWithDisplayIds = useMemo(
-    () => outputs.map((output) => ({
+  const projectOutputsWithDisplayIds = useMemo(
+    () => projectOutputCatalog.map((output) => ({
       ...output,
       displayId: outputDisplayIdMap.get(output.id) || FALLBACK_OUTPUT_DISPLAY_ID,
     })),
-    [outputs, outputDisplayIdMap]
+    [projectOutputCatalog, outputDisplayIdMap]
   )
 
-  const winnersWithDisplayIds = useMemo(
-    () => winners.map((winner) => ({
+  const projectWinnersWithDisplayIds = useMemo(
+    () => projectWinnerCatalog.map((winner) => ({
       ...winner,
       displayId: outputDisplayIdMap.get(winner.outputId) || FALLBACK_OUTPUT_DISPLAY_ID,
     })),
-    [winners, outputDisplayIdMap]
+    [projectWinnerCatalog, outputDisplayIdMap]
   )
 
   const outputsById = useMemo(() => {
     const map = new Map()
-    for (const output of outputs) {
+    for (const output of projectOutputCatalog) {
       if (isPromptPreviewOutput(output)) continue
       map.set(output.id, output)
     }
     return map
-  }, [outputs])
+  }, [projectOutputCatalog])
 
   const iterationContext = useMemo(
-    () => buildIterationContext(winners, outputsById),
-    [winners, outputsById]
+    () => buildIterationContext(projectWinnerCatalog, outputsById),
+    [projectWinnerCatalog, outputsById]
   )
 
   const activeProject = useMemo(
@@ -508,11 +526,11 @@ export default function App() {
   )
 
   const workflowSummary = useMemo(() => ({
-    outputCount: outputs.length,
-    winnerCount: winners.length,
+    outputCount: projectOutputCatalog.length,
+    winnerCount: projectWinnerCatalog.length,
     refCount: refs.length,
     activeRefCount: refs.filter((ref) => ref.send !== false).length,
-  }), [outputs, winners, refs])
+  }), [projectOutputCatalog, projectWinnerCatalog, refs])
 
   useEffect(() => {
     if (!activeProjectId) return
@@ -724,14 +742,82 @@ export default function App() {
     })
   }, [recoverFromPersistenceError])
 
+  const findKnownOutput = useCallback((outputId) => (
+    projectOutputCatalogRef.current.find((output) => output.id === outputId)
+    || outputsRef.current.find((output) => output.id === outputId)
+  ), [])
+
+  const commitOutputUpdate = useCallback(async (updatedOutput, label) => {
+    setOutputs((prev) =>
+      prev.map((output) => (output.id === updatedOutput.id ? updatedOutput : output))
+    )
+    setProjectOutputCatalog((prev) =>
+      prev.map((output) => (output.id === updatedOutput.id ? updatedOutput : output))
+    )
+
+    const outputSessionId = updatedOutput.sessionId || activeSessionId
+    if (!activeProjectId || !outputSessionId) return
+
+    try {
+      await persist.saveOutput(activeProjectId, outputSessionId, updatedOutput)
+    } catch (error) {
+      await recoverFromPersistenceError(label, error)
+      throw error
+    }
+  }, [activeProjectId, activeSessionId, recoverFromPersistenceError])
+
+  const handleUpdateOutputFeedback = useCallback((outputId, feedback) => {
+    const existingOutput = findKnownOutput(outputId)
+    if (!existingOutput || existingOutput.feedback === feedback) return
+    const updatedOutput = { ...existingOutput, feedback }
+    commitOutputUpdate(updatedOutput, 'output feedback save').catch(() => {})
+  }, [commitOutputUpdate, findKnownOutput])
+
+  const handleUpdateOutputReview = useCallback((outputId, patch) => {
+    const now = Date.now()
+    const existingOutput = findKnownOutput(outputId)
+    if (!existingOutput) return
+
+    const previousReview = existingOutput.rickReview || {}
+    const nextReview = {
+      ...previousReview,
+      ...patch,
+      updatedAt: now,
+    }
+    const nextFeedback = Object.prototype.hasOwnProperty.call(patch, 'score')
+      ? patch.score
+      : existingOutput.feedback
+    const updatedOutput = {
+      ...existingOutput,
+      rickReview: nextReview,
+      feedback: nextFeedback,
+    }
+
+    commitOutputUpdate(updatedOutput, 'output review save').catch(() => {})
+  }, [commitOutputUpdate, findKnownOutput])
+
+  const handleUpdateOutputNotes = useCallback(async (outputId, notesKeep, notesFix) => {
+    const existingOutput = findKnownOutput(outputId)
+    if (!existingOutput) return
+
+    const updatedOutput = {
+      ...existingOutput,
+      notesKeep: notesKeep || '',
+      notesFix: notesFix || '',
+    }
+
+    await commitOutputUpdate(updatedOutput, 'output notes save')
+  }, [commitOutputUpdate, findKnownOutput])
+
   const handleMarkWinner = useCallback(async (output) => {
     if (!output || !activeProjectId || !activeSessionId) return
-    const existingIdx = winners.findIndex((w) => w.outputId === output.id)
+    const outputSessionId = output.sessionId || activeSessionId
+    const existingIdx = projectWinnerCatalog.findIndex((w) => w.outputId === output.id)
     if (existingIdx >= 0) {
       // Remove winner
-      const winnerId = winners[existingIdx].id
-      const next = winners.filter((w) => w.id !== winnerId)
-      setWinners(next)
+      const winnerId = projectWinnerCatalog[existingIdx].id
+      setProjectWinnerCatalog((prev) => prev.filter((w) => w.id !== winnerId))
+      setWinners((prev) => prev.filter((w) => w.id !== winnerId))
       persist.deleteWinner(winnerId).catch((error) => {
         recoverFromPersistenceError('winner removal', error)
       })
@@ -740,7 +826,7 @@ export default function App() {
       // Add winner
       const winner = {
         id: createId(),
-        sessionId: activeSessionId,
+        sessionId: outputSessionId,
         outputId: output.id,
         feedback: output.feedback,
         recipe: {
@@ -749,8 +835,11 @@ export default function App() {
         },
         createdAt: Date.now(),
       }
-      setWinners((prev) => [...prev, winner])
-      persist.saveWinner(activeProjectId, activeSessionId, winner).catch((error) => {
+      setProjectWinnerCatalog((prev) => sortWinnersForReview([...prev, winner]))
+      if (outputSessionId === activeSessionId) {
+        setWinners((prev) => [...prev, winner])
+      }
+      persist.saveWinner(activeProjectId, outputSessionId, winner).catch((error) => {
         recoverFromPersistenceError('winner save', error)
       })
 
@@ -787,74 +876,7 @@ export default function App() {
         console.warn('[winner-upscale-sync] failed to queue upscale recipe', error)
       }
     }
-  }, [activeProjectId, activeSessionId, winners, recoverFromPersistenceError])
-
-  const handleUpdateOutputFeedback = useCallback((outputId, feedback) => {
-    setOutputs((prev) =>
-      prev.map((output) => {
-        if (output.id !== outputId) return output
-        if (output.feedback === feedback) return output
-        const updated = { ...output, feedback }
-        if (activeProjectId && activeSessionId) {
-          persist.saveOutput(activeProjectId, activeSessionId, updated).catch((error) => {
-            recoverFromPersistenceError('output feedback save', error)
-          })
-        }
-        return updated
-      })
-    )
-  }, [activeProjectId, activeSessionId, recoverFromPersistenceError])
-
-  const handleUpdateOutputReview = useCallback((outputId, patch) => {
-    const now = Date.now()
-    setOutputs((prev) =>
-      prev.map((output) => {
-        if (output.id !== outputId) return output
-        const previousReview = output.rickReview || {}
-        const nextReview = {
-          ...previousReview,
-          ...patch,
-          updatedAt: now,
-        }
-        const nextFeedback = Object.prototype.hasOwnProperty.call(patch, 'score')
-          ? patch.score
-          : output.feedback
-        const updated = {
-          ...output,
-          rickReview: nextReview,
-          feedback: nextFeedback,
-        }
-        if (activeProjectId && activeSessionId) {
-          persist.saveOutput(activeProjectId, activeSessionId, updated).catch((error) => {
-            recoverFromPersistenceError('output review save', error)
-          })
-        }
-        return updated
-      })
-    )
-  }, [activeProjectId, activeSessionId, recoverFromPersistenceError])
-
-  const handleUpdateOutputNotes = useCallback(async (outputId, notesKeep, notesFix) => {
-    const existingOutput = outputsRef.current.find((output) => output.id === outputId)
-    if (!existingOutput || !activeProjectId || !activeSessionId) return
-
-    const updatedOutput = {
-      ...existingOutput,
-      notesKeep: notesKeep || '',
-      notesFix: notesFix || '',
-    }
-
-    setOutputs((prev) =>
-      prev.map((output) => (output.id === outputId ? updatedOutput : output))
-    )
-
-    try {
-      await persist.saveOutput(activeProjectId, activeSessionId, updatedOutput)
-    } catch (error) {
-      await recoverFromPersistenceError('output notes save', error)
-      throw error
-    }
-  }, [activeProjectId, activeSessionId, recoverFromPersistenceError])
+  }, [activeProjectId, activeSessionId, handleUpdateOutputFeedback, projectWinnerCatalog, recoverFromPersistenceError])
 
   const handleUpdatePromptPreviewText = useCallback(async (outputId, promptSections, promptText) => {
     const existingOutput = outputsRef.current.find((output) => output.id === outputId)
@@ -922,10 +944,10 @@ export default function App() {
   return (
     <div className="app">
       <ReviewConsole
-          outputs={outputsWithDisplayIds}
-          stripOutputs={sitewideOutputCatalog}
-          winners={winnersWithDisplayIds}
-          stripWinners={sitewideWinners}
+          outputs={projectOutputsWithDisplayIds}
+          stripOutputs={projectOutputsWithDisplayIds}
+          winners={projectWinnersWithDisplayIds}
+          stripWinners={projectWinnersWithDisplayIds}
           projects={projects}
           activeProjectId={activeProjectId}
           activeSessionId={activeSessionId}
